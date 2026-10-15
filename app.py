@@ -174,7 +174,7 @@ st.markdown(
     """
     <div class="main-header">
         <h1>✨ DATA CONTROL IHP</h1>
-        <p>Advanced Data Processing, Validation & Automated Reconciliation System</p>
+        <p>Data Processing, Validation & Automated Reconciliation System</p>
     </div>
 """,
     unsafe_allow_html=True,
