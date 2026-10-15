@@ -181,7 +181,7 @@ st.markdown(
 )
 
 # Sidebar Modern
-st.sidebar.markdown("### ⚡ Control Panel")
+st.sidebar.markdown("### ⚡ DCIHP")
 menu = st.sidebar.selectbox("Pilih Menu Utama", ["Pengelolaan Data IHP"])
 
 if menu == "Pengelolaan Data IHP":
