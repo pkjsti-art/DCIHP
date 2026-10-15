@@ -25,6 +25,26 @@ def clean_dataframe(df):
   return df
 
 
+# Fungsi pintar untuk membersihkan dan mengubah string angka (menangani format koma/titik)
+def parse_numeric(val):
+  if pd.isna(val) or val == "":
+    return 0.0
+  if isinstance(val, (int, float)):
+    return float(val)
+  # Jika berupa string, bersihkan karakter koma/titik pemisah ribuan jika ada
+  val_str = str(val).strip()
+  # Ganti koma jadi titik jika format desimal menggunakan koma
+  # Contoh: "1.250,50" -> "1250.50"
+  if "," in val_str and "." in val_str:
+    val_str = val_str.replace(".", "").replace(",", ".")
+  elif "," in val_str:
+    val_str = val_str.replace(",", ".")
+  try:
+    return float(val_str)
+  except ValueError:
+    return 0.0
+
+
 # Title Aplikasi
 st.title("DATA CONTROL IHP")
 
@@ -53,19 +73,19 @@ if menu == "Pengelolaan Data IHP":
         ):
           # 1. Membaca File
           if uploaded_ihp.name.endswith(".csv"):
-            df_ihp = pd.read_csv(uploaded_ihp)
+            df_ihp = pd.read_csv(uploaded_ihp, dtype=str)
           else:
-            df_ihp = pd.read_excel(uploaded_ihp)
+            df_ihp = pd.read_excel(uploaded_ihp, dtype=str)
 
           if uploaded_memphis.name.endswith(".csv"):
-            df_memphis = pd.read_csv(uploaded_memphis)
+            df_memphis = pd.read_csv(uploaded_memphis, dtype=str)
           else:
-            df_memphis = pd.read_excel(uploaded_memphis)
+            df_memphis = pd.read_excel(uploaded_memphis, dtype=str)
 
           if uploaded_benang.name.endswith(".csv"):
-            df_benang = pd.read_csv(uploaded_benang)
+            df_benang = pd.read_csv(uploaded_benang, dtype=str)
           else:
-            df_benang = pd.read_excel(uploaded_benang)
+            df_benang = pd.read_excel(uploaded_benang, dtype=str)
 
           # Basic Cleaning
           df_ihp = clean_dataframe(df_ihp)
@@ -76,13 +96,13 @@ if menu == "Pengelolaan Data IHP":
           # 2. PROCESSING DATA MEMPHIS
           # ==========================================
           if "C. Penerimaan" in df_memphis.columns:
-            df_memphis["C. Penerimaan"] = pd.to_numeric(
-                df_memphis["C. Penerimaan"], errors="coerce"
-            ).fillna(0)
+            df_memphis["C. Penerimaan"] = df_memphis["C. Penerimaan"].apply(
+                parse_numeric
+            )
           if "Penerimaan" in df_memphis.columns:
-            df_memphis["Penerimaan"] = pd.to_numeric(
-                df_memphis["Penerimaan"], errors="coerce"
-            ).fillna(0)
+            df_memphis["Penerimaan"] = df_memphis["Penerimaan"].apply(
+                parse_numeric
+            )
 
           # Hapus baris dengan C. Penerimaan bernilai 0
           if "C. Penerimaan" in df_memphis.columns:
@@ -125,19 +145,15 @@ if menu == "Pengelolaan Data IHP":
             df_heatset = df_ihp[mask_heatset].copy()
             df_ihp = df_ihp[~mask_heatset].copy()
 
-          # Konversi numerik target & qty
+          # Konversi numerik target & qty dengan parser pintar
           if "Target Qty" in df_ihp.columns:
-            df_ihp["Target Qty"] = pd.to_numeric(
-                df_ihp["Target Qty"], errors="coerce"
-            ).fillna(0)
+            df_ihp["Target Qty"] = df_ihp["Target Qty"].apply(parse_numeric)
           if "Qty" in df_ihp.columns:
-            df_ihp["Qty"] = pd.to_numeric(
-                df_ihp["Qty"], errors="coerce"
-            ).fillna(0)
+            df_ihp["Qty"] = df_ihp["Qty"].apply(parse_numeric)
 
-          # Qty Target Standar (GR) - Berdasarkan Target Qty dikali 1000 jika bukan GR
+          # Qty Target Standar (GR) - Dibuat TEPAT di sebelah kanan kolom 'Target Unit'
           if "Target Unit" in df_ihp.columns and "Target Qty" in df_ihp.columns:
-            df_ihp["Qty Target Standar (GR)"] = df_ihp.apply(
+            target_gr_values = df_ihp.apply(
                 lambda row: (
                     row["Target Qty"]
                     if str(row["Target Unit"]).strip().upper() == "GR"
@@ -145,12 +161,18 @@ if menu == "Pengelolaan Data IHP":
                 ),
                 axis=1,
             )
+            idx_target_unit = df_ihp.columns.get_loc("Target Unit")
+            df_ihp.insert(
+                idx_target_unit + 1,
+                "Qty Target Standar (GR)",
+                target_gr_values,
+            )
           else:
             df_ihp["Qty Target Standar (GR)"] = 0
 
-          # Qty BB Standar (GR)
+          # Qty BB Standar (GR) - Dibuat TEPAT di sebelah kanan kolom 'Qty'
           if "Unit" in df_ihp.columns and "Qty" in df_ihp.columns:
-            df_ihp["Qty BB Standar (GR)"] = df_ihp.apply(
+            qty_gr_values = df_ihp.apply(
                 lambda row: (
                     row["Qty"]
                     if str(row["Unit"]).strip().upper() == "GR"
@@ -158,6 +180,8 @@ if menu == "Pengelolaan Data IHP":
                 ),
                 axis=1,
             )
+            idx_qty = df_ihp.columns.get_loc("Qty")
+            df_ihp.insert(idx_qty + 1, "Qty BB Standar (GR)", qty_gr_values)
           else:
             df_ihp["Qty BB Standar (GR)"] = 0
 
@@ -265,20 +289,32 @@ if menu == "Pengelolaan Data IHP":
 
           # ==========================================
           # 5. DOWNLOAD EXCEL MULTI-SHEET
+          # (Hapus kolom bantu internal sebelum diexport ke Excel)
           # ==========================================
+          df_ihp_export = df_ihp.drop(columns=["Item_Standard"], errors="ignore")
+          df_memphis_export = df_memphis.drop(
+              columns=["Benang_Standard"], errors="ignore"
+          )
+          df_gu_export = df_gu.drop(
+              columns=["Benang_Standard"], errors="ignore"
+          )
+          df_heatset_export = df_heatset.drop(
+              columns=["Item_Standard"], errors="ignore"
+          )
+
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
             final_report.to_excel(
                 writer, sheet_name="Hasil Olah Data", index=False
             )
-            df_ihp.to_excel(
+            df_ihp_export.to_excel(
                 writer, sheet_name="Data Master IHP", index=False
             )
-            df_memphis.to_excel(
+            df_memphis_export.to_excel(
                 writer, sheet_name="Data Memphis", index=False
             )
-            df_gu.to_excel(writer, sheet_name="Data GU", index=False)
-            df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
+            df_gu_export.to_excel(writer, sheet_name="Data GU", index=False)
+            df_heatset_export.to_excel(writer, sheet_name="Heatset", index=False)
           processed_data = output.getvalue()
 
           st.download_button(
