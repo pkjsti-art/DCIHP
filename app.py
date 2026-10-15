@@ -133,17 +133,16 @@ if menu == "Pengelolaan Data IHP":
             df_memphis["Penerimaan (GR)"] = 0
 
           # ==========================================
-          # 3. MAPPING BENANG (Setup Kamus)
+          # 3. MAPPING BENANG (Setup Kamus Berdasarkan Data Benang)
+          # Kolom 0 = Nama Benang Memphis, Kolom 1 = Nama Benang IHP
           # ==========================================
           mapping_memphis_to_ihp = {}
-          mapping_ihp_to_memphis = {}
           if len(df_benang.columns) >= 2:
             for _, row in df_benang.iterrows():
-              memphis_name = str(row.iloc[0]).strip()
-              ihp_name = str(row.iloc[1]).strip()
-              if memphis_name and memphis_name != "nan":
-                mapping_memphis_to_ihp[memphis_name] = ihp_name
-                mapping_ihp_to_memphis[ihp_name] = memphis_name
+              m_name = str(row.iloc[0]).strip()
+              i_name = str(row.iloc[1]).strip()
+              if m_name and m_name != "nan" and i_name and i_name != "nan":
+                mapping_memphis_to_ihp[m_name] = i_name
 
           # ==========================================
           # 4. PROCESSING DATA MASTER IHP
@@ -172,15 +171,16 @@ if menu == "Pengelolaan Data IHP":
           if not item_col_ihp:
             item_col_ihp = df_ihp.columns[0]
 
-          # Tambahkan kolom Nama Benang Standar di sebelah kanan kolom item IHP
+          # Buat kolom 'Nama Benang Standar' sebagai penanda internal di IHP (mencari padanan Memphis dari IHP)
+          inv_mapping = {v: k for k, v in mapping_memphis_to_ihp.items()}
           std_names = df_ihp[item_col_ihp].apply(
-              lambda x: mapping_ihp_to_memphis.get(x, x)
+              lambda x: inv_mapping.get(x, x)
           )
-          for col_drop in ["Nama Benang Standar", "Item Standard"]:
+
+          # Hapus kolom Harga dan Total dari Master IHP
+          for col_drop in ["Harga", "Total"]:
             if col_drop in df_ihp.columns:
               df_ihp = df_ihp.drop(columns=[col_drop])
-          idx_item = df_ihp.columns.get_loc(item_col_ihp)
-          df_ihp.insert(idx_item + 1, "Nama Benang Standar", std_names)
 
           # Qty Target Standar (GR) - Di sebelah kanan Target Unit
           if "Target Unit" in df_ihp.columns and "Target Qty" in df_ihp.columns:
@@ -238,6 +238,11 @@ if menu == "Pengelolaan Data IHP":
           df_ihp.insert(idx_bb_std + 1, "Crosscheck Qty", crosscheck_vals)
           df_ihp.insert(idx_bb_std + 2, "Selisih (GR)", selisih_temp)
 
+          # Tambahkan kolom 'Nama Benang Standar' di kolom paling akhir sheet Master IHP
+          if "Nama Benang Standar" in df_ihp.columns:
+            df_ihp = df_ihp.drop(columns=["Nama Benang Standar"])
+          df_ihp["Nama Benang Standar"] = std_names
+
           # ==========================================
           # 5. COMPARE & BUILD FINAL REPORT (Multi-line Kode Pemakaian)
           # ==========================================
@@ -266,11 +271,16 @@ if menu == "Pengelolaan Data IHP":
             total_cones = sub_memphis["C. Penerimaan"].sum()
             total_qty_m = sub_memphis["Penerimaan (GR)"].sum()
 
-            ihp_target = mapping_memphis_to_ihp.get(b_name, b_name)
-            sub_ihp = df_ihp[df_ihp["Nama Benang Standar"] == ihp_target]
+            # Cari padanan nama IHP berdasarkan mapping Data Benang
+            ihp_target_name = mapping_memphis_to_ihp.get(b_name, b_name)
+
+            # Filter data IHP berdasarkan nama item asli atau nama standarnya
+            sub_ihp = df_ihp[
+                (df_ihp[item_col_ihp] == ihp_target_name)
+                | (df_ihp["Nama Benang Standar"] == b_name)
+            ]
             total_qty_ihp = sub_ihp["Qty BB Standar (GR)"].sum()
 
-            # Selisih = Total Qty Memphis dikurangi Total Qty IHP (dibulatkan 2 desimal)
             selisih = round(total_qty_m - total_qty_ihp, 2)
             keterangan = (
                 "Benang belum di IHP"
