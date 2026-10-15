@@ -192,7 +192,7 @@ if menu == "Pengelolaan Data IHP":
           df_benang = clean_dataframe(df_benang)
 
           # ==========================================
-          # 2. PROCESSING DATA MEMPHIS (Hapus baris total di bawah)
+          # 2. PROCESSING DATA MEMPHIS & GU (Hapus baris total di bawah)
           # ==========================================
           if len(df_memphis) > 0:
             last_row_val = str(df_memphis.iloc[-1, 0]).strip().lower()
@@ -220,6 +220,7 @@ if menu == "Pengelolaan Data IHP":
                 df_memphis["Bobin"].astype(str).str.lower() != "tanpa bobin"
             ]
 
+          # Pisahkan baris GU
           df_gu = pd.DataFrame(columns=df_memphis.columns)
           if "No. LOT" in df_memphis.columns:
             mask_gu = (
@@ -230,6 +231,7 @@ if menu == "Pengelolaan Data IHP":
             df_gu = df_memphis[mask_gu].copy()
             df_memphis = df_memphis[~mask_gu].copy()
 
+          # Tambahkan Kolom Penerimaan (GR) di Data Memphis
           if "Penerimaan" in df_memphis.columns:
             penerimaan_gr_vals = df_memphis["Penerimaan"] * 1000
             idx_pen = df_memphis.columns.get_loc("Penerimaan")
@@ -238,6 +240,16 @@ if menu == "Pengelolaan Data IHP":
             df_memphis.insert(idx_pen + 1, "Penerimaan (GR)", penerimaan_gr_vals)
           else:
             df_memphis["Penerimaan (GR)"] = 0
+
+          # Tambahkan Kolom Penerimaan (GR) di Data GU juga
+          if "Penerimaan" in df_gu.columns:
+            penerimaan_gr_gu = df_gu["Penerimaan"] * 1000
+            idx_pen_gu = df_gu.columns.get_loc("Penerimaan")
+            if "Penerimaan (GR)" in df_gu.columns:
+              df_gu = df_gu.drop(columns=["Penerimaan (GR)"])
+            df_gu.insert(idx_pen_gu + 1, "Penerimaan (GR)", penerimaan_gr_gu)
+          else:
+            df_gu["Penerimaan (GR)"] = 0
 
           # ==========================================
           # 3. MAPPING BENANG
@@ -251,7 +263,7 @@ if menu == "Pengelolaan Data IHP":
                 mapping_memphis_to_ihp[m_name] = i_name
 
           # ==========================================
-          # 4. PROCESSING DATA MASTER IHP
+          # 4. PROCESSING DATA MASTER IHP & HEATSET
           # ==========================================
           df_heatset = pd.DataFrame(columns=df_ihp.columns)
           if "Kode Barang Jadi" in df_ihp.columns:
@@ -263,82 +275,98 @@ if menu == "Pengelolaan Data IHP":
             df_heatset = df_ihp[mask_heatset].copy()
             df_ihp = df_ihp[~mask_heatset].copy()
 
-          if "Target Qty" in df_ihp.columns:
-            df_ihp["Target Qty"] = df_ihp["Target Qty"].apply(parse_numeric)
-          if "Qty" in df_ihp.columns:
-            df_ihp["Qty"] = df_ihp["Qty"].apply(parse_numeric)
+          # Fungsi pemrosesan kalkulasi IHP / Heatset
+          def process_ihp_calculations(target_df):
+            target_df = target_df.copy()
+            if "Target Qty" in target_df.columns:
+              target_df["Target Qty"] = target_df["Target Qty"].apply(
+                  parse_numeric
+              )
+            if "Qty" in target_df.columns:
+              target_df["Qty"] = target_df["Qty"].apply(parse_numeric)
 
-          item_col_ihp = None
-          for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
-            if col in df_ihp.columns:
-              item_col_ihp = col
-              break
-          if not item_col_ihp:
-            item_col_ihp = df_ihp.columns[0]
+            item_c = None
+            for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
+              if col in target_df.columns:
+                item_c = col
+                break
+            if not item_c:
+              item_c = target_df.columns[0]
 
-          inv_mapping = {v: k for k, v in mapping_memphis_to_ihp.items()}
-          std_names = df_ihp[item_col_ihp].apply(
-              lambda x: inv_mapping.get(x, x)
-          )
-
-          for col_drop in ["Harga", "Total"]:
-            if col_drop in df_ihp.columns:
-              df_ihp = df_ihp.drop(columns=[col_drop])
-
-          if "Target Unit" in df_ihp.columns and "Target Qty" in df_ihp.columns:
-            target_gr_values = df_ihp.apply(
-                lambda row: (
-                    row["Target Qty"]
-                    if str(row["Target Unit"]).strip().upper() == "GR"
-                    else row["Target Qty"] * 1000
-                ),
-                axis=1,
+            inv_mapping = {v: k for k, v in mapping_memphis_to_ihp.items()}
+            std_names = target_df[item_c].apply(
+                lambda x: inv_mapping.get(x, x)
             )
-            idx_target_unit = df_ihp.columns.get_loc("Target Unit")
-            if "Qty Target Standar (GR)" in df_ihp.columns:
-              df_ihp = df_ihp.drop(columns=["Qty Target Standar (GR)"])
-            df_ihp.insert(
-                idx_target_unit + 1,
-                "Qty Target Standar (GR)",
-                target_gr_values,
+
+            for col_drop in ["Harga", "Total"]:
+              if col_drop in target_df.columns:
+                target_df = target_df.drop(columns=[col_drop])
+
+            if (
+                "Target Unit" in target_df.columns
+                and "Target Qty" in target_df.columns
+            ):
+              target_gr_values = target_df.apply(
+                  lambda row: (
+                      row["Target Qty"]
+                      if str(row["Target Unit"]).strip().upper() == "GR"
+                      else row["Target Qty"] * 1000
+                  ),
+                  axis=1,
+              )
+              idx_target_unit = target_df.columns.get_loc("Target Unit")
+              if "Qty Target Standar (GR)" in target_df.columns:
+                target_df = target_df.drop(columns=["Qty Target Standar (GR)"])
+              target_df.insert(
+                  idx_target_unit + 1,
+                  "Qty Target Standar (GR)",
+                  target_gr_values,
+              )
+            else:
+              target_df["Qty Target Standar (GR)"] = 0
+
+            if "Unit" in target_df.columns and "Qty" in target_df.columns:
+              qty_gr_values = target_df.apply(
+                  lambda row: (
+                      row["Qty"]
+                      if str(row["Unit"]).strip().upper() == "GR"
+                      else row["Qty"] * 1000
+                  ),
+                  axis=1,
+              )
+              idx_qty = target_df.columns.get_loc("Qty")
+              if "Qty BB Standar (GR)" in target_df.columns:
+                target_df = target_df.drop(columns=["Qty BB Standar (GR)"])
+              target_df.insert(
+                  idx_qty + 1, "Qty BB Standar (GR)", qty_gr_values
+              )
+            else:
+              target_df["Qty BB Standar (GR)"] = 0
+
+            selisih_temp = (
+                target_df["Qty BB Standar (GR)"]
+                - target_df["Qty Target Standar (GR)"]
             )
-          else:
-            df_ihp["Qty Target Standar (GR)"] = 0
-
-          if "Unit" in df_ihp.columns and "Qty" in df_ihp.columns:
-            qty_gr_values = df_ihp.apply(
-                lambda row: (
-                    row["Qty"]
-                    if str(row["Unit"]).strip().upper() == "GR"
-                    else row["Qty"] * 1000
-                ),
-                axis=1,
+            crosscheck_vals = selisih_temp.apply(
+                lambda x: "CORRECT" if abs(x) < 1e-5 else "INCORRECT"
             )
-            idx_qty = df_ihp.columns.get_loc("Qty")
-            if "Qty BB Standar (GR)" in df_ihp.columns:
-              df_ihp = df_ihp.drop(columns=["Qty BB Standar (GR)"])
-            df_ihp.insert(idx_qty + 1, "Qty BB Standar (GR)", qty_gr_values)
-          else:
-            df_ihp["Qty BB Standar (GR)"] = 0
 
-          selisih_temp = (
-              df_ihp["Qty BB Standar (GR)"] - df_ihp["Qty Target Standar (GR)"]
-          )
-          crosscheck_vals = selisih_temp.apply(
-              lambda x: "CORRECT" if abs(x) < 1e-5 else "INCORRECT"
-          )
+            for col_drop in ["Crosscheck Qty", "Selisih (GR)"]:
+              if col_drop in target_df.columns:
+                target_df = target_df.drop(columns=[col_drop])
 
-          for col_drop in ["Crosscheck Qty", "Selisih (GR)"]:
-            if col_drop in df_ihp.columns:
-              df_ihp = df_ihp.drop(columns=[col_drop])
+            idx_bb_std = target_df.columns.get_loc("Qty BB Standar (GR)")
+            target_df.insert(idx_bb_std + 1, "Crosscheck Qty", crosscheck_vals)
+            target_df.insert(idx_bb_std + 2, "Selisih (GR)", selisih_temp)
 
-          idx_bb_std = df_ihp.columns.get_loc("Qty BB Standar (GR)")
-          df_ihp.insert(idx_bb_std + 1, "Crosscheck Qty", crosscheck_vals)
-          df_ihp.insert(idx_bb_std + 2, "Selisih (GR)", selisih_temp)
+            if "Nama Benang Standar" in target_df.columns:
+              target_df = target_df.drop(columns=["Nama Benang Standar"])
+            target_df["Nama Benang Standar"] = std_names
 
-          if "Nama Benang Standar" in df_ihp.columns:
-            df_ihp = df_ihp.drop(columns=["Nama Benang Standar"])
-          df_ihp["Nama Benang Standar"] = std_names
+            return target_df
+
+          df_ihp = process_ihp_calculations(df_ihp)
+          df_heatset = process_ihp_calculations(df_heatset)
 
           # ==========================================
           # 5. COMPARE & BUILD FINAL REPORT
@@ -358,6 +386,14 @@ if menu == "Pengelolaan Data IHP":
               break
           if not kode_col_ihp and len(df_ihp.columns) > 0:
             kode_col_ihp = df_ihp.columns[0]
+
+          item_col_ihp = None
+          for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
+            if col in df_ihp.columns:
+              item_col_ihp = col
+              break
+          if not item_col_ihp:
+            item_col_ihp = df_ihp.columns[0]
 
           memphis_benangs = df_memphis[memphis_benang_col].unique()
           final_rows = []
@@ -405,7 +441,7 @@ if menu == "Pengelolaan Data IHP":
           final_report = pd.DataFrame(final_rows)
 
           # ==========================================
-          # 6. GENERATE EXCEL BUFFER (Dengan Format Wrap Text)
+          # 6. GENERATE EXCEL BUFFER
           # ==========================================
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
