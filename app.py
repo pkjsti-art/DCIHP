@@ -1,5 +1,7 @@
 import io
 import re
+import openpyxl
+from openpyxl.styles import Alignment
 import pandas as pd
 import streamlit as st
 
@@ -192,10 +194,8 @@ if menu == "Pengelolaan Data IHP":
           # ==========================================
           # 2. PROCESSING DATA MEMPHIS (Hapus baris total di bawah)
           # ==========================================
-          # Hapus baris terakhir jika terdeteksi baris total / kosong
           if len(df_memphis) > 0:
             last_row_val = str(df_memphis.iloc[-1, 0]).strip().lower()
-            # Jika baris terakhir berupa total atau kosong di kolom pertama/kedua
             if (
                 "total" in last_row_val
                 or last_row_val == "nan"
@@ -425,20 +425,16 @@ if menu == "Pengelolaan Data IHP":
             workbook = writer.book
             ws = workbook["Hasil Olah Data"]
 
-            # Cari kolom 'Kode Pemakaian IHP' (biasanya kolom ke-7 / G)
             for col in ws.iter_cols(
                 min_row=1, max_row=1, min_col=1, max_col=ws.max_column
             ):
               for cell in col:
                 if cell.value == "Kode Pemakaian IHP":
                   col_letter = cell.column_letter
-                  # Atur lebar kolom agar proporsional dan aktifkan wrap text untuk semua baris di kolom tersebut
                   ws.column_dimensions[col_letter].width = 45
                   for r in range(2, ws.max_row + 1):
-                    ws[f"{col_letter}{r}"].alignment = (
-                        openpyxl.styles.Alignment(
-                            wrap_text=True, vertical="center"
-                        )
+                    ws[f"{col_letter}{r}"].alignment = Alignment(
+                        wrap_text=True, vertical="center"
                     )
 
           processed_data = output.getvalue()
