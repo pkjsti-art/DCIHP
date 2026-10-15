@@ -122,14 +122,31 @@ if menu == "Pengelolaan Data IHP":
             df_gu = df_memphis[mask_gu].copy()
             df_memphis = df_memphis[~mask_gu].copy()
 
-          # Buat kolom baru Penerimaan (GR)
+          # Tambahkan Kolom Penerimaan (GR) tepat di sebelah kanan kolom Penerimaan
           if "Penerimaan" in df_memphis.columns:
-            df_memphis["Penerimaan (GR)"] = df_memphis["Penerimaan"] * 1000
+            penerimaan_gr_vals = df_memphis["Penerimaan"] * 1000
+            idx_pen = df_memphis.columns.get_loc("Penerimaan")
+            if "Penerimaan (GR)" in df_memphis.columns:
+              df_memphis = df_memphis.drop(columns=["Penerimaan (GR)"])
+            df_memphis.insert(idx_pen + 1, "Penerimaan (GR)", penerimaan_gr_vals)
           else:
             df_memphis["Penerimaan (GR)"] = 0
 
           # ==========================================
-          # 3. PROCESSING DATA MASTER IHP
+          # 3. MAPPING BENANG (Setup Kamus)
+          # ==========================================
+          mapping_memphis_to_ihp = {}
+          mapping_ihp_to_memphis = {}
+          if len(df_benang.columns) >= 2:
+            for _, row in df_benang.iterrows():
+              memphis_name = str(row.iloc[0]).strip()
+              ihp_name = str(row.iloc[1]).strip()
+              if memphis_name and memphis_name != "nan":
+                mapping_memphis_to_ihp[memphis_name] = ihp_name
+                mapping_ihp_to_memphis[ihp_name] = memphis_name
+
+          # ==========================================
+          # 4. PROCESSING DATA MASTER IHP
           # ==========================================
           df_heatset = pd.DataFrame(columns=df_ihp.columns)
           if "Kode Barang Jadi" in df_ihp.columns:
@@ -146,6 +163,25 @@ if menu == "Pengelolaan Data IHP":
           if "Qty" in df_ihp.columns:
             df_ihp["Qty"] = df_ihp["Qty"].apply(parse_numeric)
 
+          # Tentukan kolom item di IHP
+          item_col_ihp = None
+          for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
+            if col in df_ihp.columns:
+              item_col_ihp = col
+              break
+          if not item_col_ihp:
+            item_col_ihp = df_ihp.columns[0]
+
+          # Tambahkan kolom Nama Benang Standar di sebelah kanan kolom item IHP
+          std_names = df_ihp[item_col_ihp].apply(
+              lambda x: mapping_ihp_to_memphis.get(x, x)
+          )
+          for col_drop in ["Nama Benang Standar", "Item Standard"]:
+            if col_drop in df_ihp.columns:
+              df_ihp = df_ihp.drop(columns=[col_drop])
+          idx_item = df_ihp.columns.get_loc(item_col_ihp)
+          df_ihp.insert(idx_item + 1, "Nama Benang Standar", std_names)
+
           # Qty Target Standar (GR) - Di sebelah kanan Target Unit
           if "Target Unit" in df_ihp.columns and "Target Qty" in df_ihp.columns:
             target_gr_values = df_ihp.apply(
@@ -157,6 +193,8 @@ if menu == "Pengelolaan Data IHP":
                 axis=1,
             )
             idx_target_unit = df_ihp.columns.get_loc("Target Unit")
+            if "Qty Target Standar (GR)" in df_ihp.columns:
+              df_ihp = df_ihp.drop(columns=["Qty Target Standar (GR)"])
             df_ihp.insert(
                 idx_target_unit + 1,
                 "Qty Target Standar (GR)",
@@ -176,30 +214,33 @@ if menu == "Pengelolaan Data IHP":
                 axis=1,
             )
             idx_qty = df_ihp.columns.get_loc("Qty")
+            if "Qty BB Standar (GR)" in df_ihp.columns:
+              df_ihp = df_ihp.drop(columns=["Qty BB Standar (GR)"])
             df_ihp.insert(idx_qty + 1, "Qty BB Standar (GR)", qty_gr_values)
           else:
             df_ihp["Qty BB Standar (GR)"] = 0
 
-          df_ihp["Selisih (GR)"] = (
+          # Hitung selisih sementara untuk crosscheck
+          selisih_temp = (
               df_ihp["Qty BB Standar (GR)"] - df_ihp["Qty Target Standar (GR)"]
           )
-          df_ihp["Crosscheck Qty"] = df_ihp["Selisih (GR)"].apply(
-              lambda x: "CORRECT" if x == 0 else "INCORRECT"
+          crosscheck_vals = selisih_temp.apply(
+              lambda x: "CORRECT" if abs(x) < 1e-5 else "INCORRECT"
           )
 
-          # ==========================================
-          # 4. MAPPING BENANG & COMPARE DATA (Acuannya Memphis)
-          # ==========================================
-          # Membaca Data Benang: Kolom 0 = Nama Benang Memphis, Kolom 1 = Nama Benang IHP
-          mapping_memphis_to_ihp = {}
-          if len(df_benang.columns) >= 2:
-            for _, row in df_benang.iterrows():
-              memphis_name = str(row.iloc[0]).strip()
-              ihp_name = str(row.iloc[1]).strip()
-              if memphis_name and memphis_name != "nan":
-                mapping_memphis_to_ihp[memphis_name] = ihp_name
+          # Hapus kolom lama jika ada
+          for col_drop in ["Crosscheck Qty", "Selisih (GR)"]:
+            if col_drop in df_ihp.columns:
+              df_ihp = df_ihp.drop(columns=[col_drop])
 
-          # Tentukan kolom nama benang di Memphis
+          # Urutan baru: Crosscheck Qty dulu, baru Selisih (GR)
+          idx_bb_std = df_ihp.columns.get_loc("Qty BB Standar (GR)")
+          df_ihp.insert(idx_bb_std + 1, "Crosscheck Qty", crosscheck_vals)
+          df_ihp.insert(idx_bb_std + 2, "Selisih (GR)", selisih_temp)
+
+          # ==========================================
+          # 5. COMPARE & BUILD FINAL REPORT (Multi-line Kode Pemakaian)
+          # ==========================================
           memphis_benang_col = None
           for col in ["Benang", "Nama Benang", "Item", "Nama Item"]:
             if col in df_memphis.columns:
@@ -208,75 +249,68 @@ if menu == "Pengelolaan Data IHP":
           if not memphis_benang_col:
             memphis_benang_col = df_memphis.columns[0]
 
-          # Tentukan kolom nama item di IHP
-          item_col_ihp = None
-          for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
+          # Cari kolom kode di IHP
+          kode_col_ihp = None
+          for col in ["Kode", "Kode Item", "Kode Pemakaian", "No Bukti"]:
             if col in df_ihp.columns:
-              item_col_ihp = col
+              kode_col_ihp = col
               break
-          if not item_col_ihp:
-            item_col_ihp = df_ihp.columns[0]
+          if not kode_col_ihp and len(df_ihp.columns) > 0:
+            kode_col_ihp = df_ihp.columns[0]
 
-          # Agregasi Memphis per Nama Benang Memphis
-          memphis_agg = (
-              df_memphis.groupby(memphis_benang_col)
-              .agg(
-                  Total_Cones_Memphis=("C. Penerimaan", "sum"),
-                  Total_Qty_Memphis=("Penerimaan (GR)", "sum"),
-              )
-              .reset_index()
-          )
+          memphis_benangs = df_memphis[memphis_benang_col].unique()
+          final_rows = []
 
-          # Petakan nama benang Memphis ke padanan nama IHP-nya
-          memphis_agg["IHP_Target_Name"] = memphis_agg[memphis_benang_col].apply(
-              lambda x: mapping_memphis_to_ihp.get(x, x)
-          )
+          for b_name in memphis_benangs:
+            sub_memphis = df_memphis[df_memphis[memphis_benang_col] == b_name]
+            total_cones = sub_memphis["C. Penerimaan"].sum()
+            total_qty_m = sub_memphis["Penerimaan (GR)"].sum()
 
-          # Agregasi IHP per Item/Benang
-          ihp_agg = (
-              df_ihp.groupby(item_col_ihp)
-              .agg(
-                  Total_Qty_IHP=("Qty BB Standar (GR)", "sum"),
-                  Kode_Pemakaian_IHP=(
-                      "Kode" if "Kode" in df_ihp.columns else df_ihp.columns[0],
-                      "first",
-                  ),
-              )
-              .reset_index()
-          )
+            ihp_target = mapping_memphis_to_ihp.get(b_name, b_name)
+            sub_ihp = df_ihp[df_ihp["Nama Benang Standar"] == ihp_target]
+            total_qty_ihp = sub_ihp["Qty BB Standar (GR)"].sum()
 
-          # Gabungkan (Merge) dengan acuan utama data Memphis (Left Join)
-          merged_result = pd.merge(
-              memphis_agg,
-              ihp_agg,
-              left_on="IHP_Target_Name",
-              right_on=item_col_ihp,
-              how="left",
-          ).fillna({"Total_Qty_IHP": 0, "Kode_Pemakaian_IHP": ""})
+            # Selisih = Total Qty Memphis dikurangi Total Qty IHP (dibulatkan 2 desimal)
+            selisih = round(total_qty_m - total_qty_ihp, 2)
+            keterangan = (
+                "Benang belum di IHP"
+                if total_qty_ihp == 0 and len(sub_ihp) == 0
+                else ""
+            )
 
-          # Susun Tabel Akhir Hasil Olah Data
-          final_report = pd.DataFrame()
-          final_report["Nama Benang"] = merged_result[memphis_benang_col]
-          final_report["Total Cones Memphis"] = merged_result[
-              "Total_Cones_Memphis"
-          ]
-          final_report["Total Qty Memphis"] = merged_result[
-              "Total_Qty_Memphis"
-          ]
-          final_report["Total QTY IHP"] = merged_result["Total_Qty_IHP"]
-          final_report["Selisih IHP - Memphis"] = (
-              final_report["Total Qty Memphis"]
-              - final_report["Total QTY IHP"]
-          )
-          final_report["Satuan"] = "GR"
-          final_report["Kode Pemakaian IHP"] = merged_result[
-              "Kode_Pemakaian_IHP"
-          ]
+            if len(sub_ihp) > 0 and kode_col_ihp:
+              kodes = sub_ihp[kode_col_ihp].dropna().unique().tolist()
+            else:
+              kodes = ["-"]
+            if not kodes:
+              kodes = ["-"]
 
-          # Tambahkan kolom Keterangan jika benang belum ada di IHP (Total QTY IHP == 0)
-          final_report["Keterangan"] = merged_result["Total_Qty_IHP"].apply(
-              lambda x: "Benang belum di IHP" if x == 0 else ""
-          )
+            # Baris pertama (data lengkap)
+            final_rows.append({
+                "Nama Benang": b_name,
+                "Total Cones Memphis": total_cones,
+                "Total Qty Memphis": total_qty_m,
+                "Total QTY IHP": total_qty_ihp,
+                "Selisih IHP - Memphis": selisih,
+                "Satuan": "GR",
+                "Kode Pemakaian IHP": kodes[0],
+                "Keterangan": keterangan,
+            })
+
+            # Baris berikutnya (multi-line untuk kode pemakaian tambahan)
+            for k in kodes[1:]:
+              final_rows.append({
+                  "Nama Benang": "",
+                  "Total Cones Memphis": "",
+                  "Total Qty Memphis": "",
+                  "Total QTY IHP": "",
+                  "Selisih IHP - Memphis": "",
+                  "Satuan": "",
+                  "Kode Pemakaian IHP": k,
+                  "Keterangan": "",
+              })
+
+          final_report = pd.DataFrame(final_rows)
 
           st.success("Data Berhasil Diproses!")
 
@@ -285,7 +319,7 @@ if menu == "Pengelolaan Data IHP":
           st.dataframe(final_report, use_container_width=True)
 
           # ==========================================
-          # 5. DOWNLOAD EXCEL MULTI-SHEET
+          # 6. DOWNLOAD EXCEL MULTI-SHEET
           # ==========================================
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
