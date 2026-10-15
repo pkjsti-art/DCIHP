@@ -101,7 +101,7 @@ def parse_numeric(val):
     return 0.0
 
 
-# Inisialisasi Session State agar data tidak hilang saat tombol download diklik
+# Inisialisasi Session State
 if "processed" not in st.session_state:
   st.session_state.processed = False
   st.session_state.final_report = None
@@ -190,8 +190,19 @@ if menu == "Pengelolaan Data IHP":
           df_benang = clean_dataframe(df_benang)
 
           # ==========================================
-          # 2. PROCESSING DATA MEMPHIS
+          # 2. PROCESSING DATA MEMPHIS (Hapus baris total di bawah)
           # ==========================================
+          # Hapus baris terakhir jika terdeteksi baris total / kosong
+          if len(df_memphis) > 0:
+            last_row_val = str(df_memphis.iloc[-1, 0]).strip().lower()
+            # Jika baris terakhir berupa total atau kosong di kolom pertama/kedua
+            if (
+                "total" in last_row_val
+                or last_row_val == "nan"
+                or last_row_val == ""
+            ):
+              df_memphis = df_memphis.iloc[:-1].copy()
+
           if "C. Penerimaan" in df_memphis.columns:
             df_memphis["C. Penerimaan"] = df_memphis["C. Penerimaan"].apply(
                 parse_numeric
@@ -394,7 +405,7 @@ if menu == "Pengelolaan Data IHP":
           final_report = pd.DataFrame(final_rows)
 
           # ==========================================
-          # 6. GENERATE EXCEL BUFFER
+          # 6. GENERATE EXCEL BUFFER (Dengan Format Wrap Text)
           # ==========================================
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -409,9 +420,30 @@ if menu == "Pengelolaan Data IHP":
             )
             df_gu.to_excel(writer, sheet_name="Data GU", index=False)
             df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
+
+            # Mengatur Wrap Text dan Lebar Kolom untuk Sheet 'Hasil Olah Data'
+            workbook = writer.book
+            ws = workbook["Hasil Olah Data"]
+
+            # Cari kolom 'Kode Pemakaian IHP' (biasanya kolom ke-7 / G)
+            for col in ws.iter_cols(
+                min_row=1, max_row=1, min_col=1, max_col=ws.max_column
+            ):
+              for cell in col:
+                if cell.value == "Kode Pemakaian IHP":
+                  col_letter = cell.column_letter
+                  # Atur lebar kolom agar proporsional dan aktifkan wrap text untuk semua baris di kolom tersebut
+                  ws.column_dimensions[col_letter].width = 45
+                  for r in range(2, ws.max_row + 1):
+                    ws[f"{col_letter}{r}"].alignment = (
+                        openpyxl.styles.Alignment(
+                            wrap_text=True, vertical="center"
+                        )
+                    )
+
           processed_data = output.getvalue()
 
-          # Simpan ke session state agar aman dari rerun saat download
+          # Simpan ke session state
           st.session_state.final_report = final_report
           st.session_state.df_ihp = df_ihp
           st.session_state.df_memphis = df_memphis
@@ -428,7 +460,7 @@ if menu == "Pengelolaan Data IHP":
           " Memphis, dan Data Benang) terlebih dahulu!"
       )
 
-  # Tampilkan Hasil jika data sudah diproses (Persisten dengan session_state)
+  # Tampilkan Hasil jika data sudah diproses
   if st.session_state.processed:
     st.success("🎉 Data Berhasil Diproses dan Direkonsiliasi!")
     st.markdown("### 📋 Hasil Olah Data & Rekonsiliasi")
