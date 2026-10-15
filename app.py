@@ -25,16 +25,13 @@ def clean_dataframe(df):
   return df
 
 
-# Fungsi pintar untuk membersihkan dan mengubah string angka (menangani format koma/titik)
+# Fungsi pintar untuk membersihkan dan mengubah string angka
 def parse_numeric(val):
   if pd.isna(val) or val == "":
     return 0.0
   if isinstance(val, (int, float)):
     return float(val)
-  # Jika berupa string, bersihkan karakter koma/titik pemisah ribuan jika ada
   val_str = str(val).strip()
-  # Ganti koma jadi titik jika format desimal menggunakan koma
-  # Contoh: "1.250,50" -> "1250.50"
   if "," in val_str and "." in val_str:
     val_str = val_str.replace(".", "").replace(",", ".")
   elif "," in val_str:
@@ -134,7 +131,6 @@ if menu == "Pengelolaan Data IHP":
           # ==========================================
           # 3. PROCESSING DATA MASTER IHP
           # ==========================================
-          # Pisahkan baris "Heatset" (TWP.050.8 pada Kode Barang Jadi)
           df_heatset = pd.DataFrame(columns=df_ihp.columns)
           if "Kode Barang Jadi" in df_ihp.columns:
             mask_heatset = (
@@ -145,13 +141,12 @@ if menu == "Pengelolaan Data IHP":
             df_heatset = df_ihp[mask_heatset].copy()
             df_ihp = df_ihp[~mask_heatset].copy()
 
-          # Konversi numerik target & qty dengan parser pintar
           if "Target Qty" in df_ihp.columns:
             df_ihp["Target Qty"] = df_ihp["Target Qty"].apply(parse_numeric)
           if "Qty" in df_ihp.columns:
             df_ihp["Qty"] = df_ihp["Qty"].apply(parse_numeric)
 
-          # Qty Target Standar (GR) - Dibuat TEPAT di sebelah kanan kolom 'Target Unit'
+          # Qty Target Standar (GR) - Di sebelah kanan Target Unit
           if "Target Unit" in df_ihp.columns and "Target Qty" in df_ihp.columns:
             target_gr_values = df_ihp.apply(
                 lambda row: (
@@ -170,7 +165,7 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_ihp["Qty Target Standar (GR)"] = 0
 
-          # Qty BB Standar (GR) - Dibuat TEPAT di sebelah kanan kolom 'Qty'
+          # Qty BB Standar (GR) - Di sebelah kanan Qty
           if "Unit" in df_ihp.columns and "Qty" in df_ihp.columns:
             qty_gr_values = df_ihp.apply(
                 lambda row: (
@@ -185,7 +180,6 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_ihp["Qty BB Standar (GR)"] = 0
 
-          # Crosscheck Qty & Selisih (GR)
           df_ihp["Selisih (GR)"] = (
               df_ihp["Qty BB Standar (GR)"] - df_ihp["Qty Target Standar (GR)"]
           )
@@ -194,38 +188,38 @@ if menu == "Pengelolaan Data IHP":
           )
 
           # ==========================================
-          # 4. MAPPING BENANG & COMPARE DATA
+          # 4. MAPPING BENANG & COMPARE DATA (Acuannya Memphis)
           # ==========================================
-          mapping_dict = {}
+          # Membaca Data Benang: Kolom 0 = Nama Benang Memphis, Kolom 1 = Nama Benang IHP
+          mapping_memphis_to_ihp = {}
           if len(df_benang.columns) >= 2:
             for _, row in df_benang.iterrows():
-              k, v = str(row.iloc[0]).strip(), str(row.iloc[1]).strip()
-              mapping_dict[k] = v
-              mapping_dict[v] = k
+              memphis_name = str(row.iloc[0]).strip()
+              ihp_name = str(row.iloc[1]).strip()
+              if memphis_name and memphis_name != "nan":
+                mapping_memphis_to_ihp[memphis_name] = ihp_name
 
-          if "Benang" in df_memphis.columns:
-            df_memphis["Benang_Standard"] = df_memphis["Benang"].apply(
-                lambda x: mapping_dict.get(x, x)
-            )
-          else:
-            df_memphis["Benang_Standard"] = ""
+          # Tentukan kolom nama benang di Memphis
+          memphis_benang_col = None
+          for col in ["Benang", "Nama Benang", "Item", "Nama Item"]:
+            if col in df_memphis.columns:
+              memphis_benang_col = col
+              break
+          if not memphis_benang_col:
+            memphis_benang_col = df_memphis.columns[0]
 
+          # Tentukan kolom nama item di IHP
           item_col_ihp = None
           for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
             if col in df_ihp.columns:
               item_col_ihp = col
               break
+          if not item_col_ihp:
+            item_col_ihp = df_ihp.columns[0]
 
-          if item_col_ihp:
-            df_ihp["Item_Standard"] = df_ihp[item_col_ihp].apply(
-                lambda x: mapping_dict.get(x, x)
-            )
-          else:
-            df_ihp["Item_Standard"] = df_ihp.iloc[:, 0]
-
-          # Agregasi Memphis per Benang
+          # Agregasi Memphis per Nama Benang Memphis
           memphis_agg = (
-              df_memphis.groupby("Benang_Standard")
+              df_memphis.groupby(memphis_benang_col)
               .agg(
                   Total_Cones_Memphis=("C. Penerimaan", "sum"),
                   Total_Qty_Memphis=("Penerimaan (GR)", "sum"),
@@ -233,9 +227,14 @@ if menu == "Pengelolaan Data IHP":
               .reset_index()
           )
 
+          # Petakan nama benang Memphis ke padanan nama IHP-nya
+          memphis_agg["IHP_Target_Name"] = memphis_agg[memphis_benang_col].apply(
+              lambda x: mapping_memphis_to_ihp.get(x, x)
+          )
+
           # Agregasi IHP per Item/Benang
           ihp_agg = (
-              df_ihp.groupby("Item_Standard")
+              df_ihp.groupby(item_col_ihp)
               .agg(
                   Total_Qty_IHP=("Qty BB Standar (GR)", "sum"),
                   Kode_Pemakaian_IHP=(
@@ -246,25 +245,18 @@ if menu == "Pengelolaan Data IHP":
               .reset_index()
           )
 
+          # Gabungkan (Merge) dengan acuan utama data Memphis (Left Join)
           merged_result = pd.merge(
               memphis_agg,
               ihp_agg,
-              left_on="Benang_Standard",
-              right_on="Item_Standard",
-              how="outer",
-          ).fillna(0)
+              left_on="IHP_Target_Name",
+              right_on=item_col_ihp,
+              how="left",
+          ).fillna({"Total_Qty_IHP": 0, "Kode_Pemakaian_IHP": ""})
 
           # Susun Tabel Akhir Hasil Olah Data
           final_report = pd.DataFrame()
-          final_report["Nama Benang"] = merged_result.apply(
-              lambda row: (
-                  row["Item_Standard"]
-                  if row["Benang_Standard"] == 0
-                  or pd.isna(row["Benang_Standard"])
-                  else row["Benang_Standard"]
-              ),
-              axis=1,
-          )
+          final_report["Nama Benang"] = merged_result[memphis_benang_col]
           final_report["Total Cones Memphis"] = merged_result[
               "Total_Cones_Memphis"
           ]
@@ -281,6 +273,11 @@ if menu == "Pengelolaan Data IHP":
               "Kode_Pemakaian_IHP"
           ]
 
+          # Tambahkan kolom Keterangan jika benang belum ada di IHP (Total QTY IHP == 0)
+          final_report["Keterangan"] = merged_result["Total_Qty_IHP"].apply(
+              lambda x: "Benang belum di IHP" if x == 0 else ""
+          )
+
           st.success("Data Berhasil Diproses!")
 
           # Tampilkan Tabel
@@ -289,32 +286,20 @@ if menu == "Pengelolaan Data IHP":
 
           # ==========================================
           # 5. DOWNLOAD EXCEL MULTI-SHEET
-          # (Hapus kolom bantu internal sebelum diexport ke Excel)
           # ==========================================
-          df_ihp_export = df_ihp.drop(columns=["Item_Standard"], errors="ignore")
-          df_memphis_export = df_memphis.drop(
-              columns=["Benang_Standard"], errors="ignore"
-          )
-          df_gu_export = df_gu.drop(
-              columns=["Benang_Standard"], errors="ignore"
-          )
-          df_heatset_export = df_heatset.drop(
-              columns=["Item_Standard"], errors="ignore"
-          )
-
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
             final_report.to_excel(
                 writer, sheet_name="Hasil Olah Data", index=False
             )
-            df_ihp_export.to_excel(
+            df_ihp.to_excel(
                 writer, sheet_name="Data Master IHP", index=False
             )
-            df_memphis_export.to_excel(
+            df_memphis.to_excel(
                 writer, sheet_name="Data Memphis", index=False
             )
-            df_gu_export.to_excel(writer, sheet_name="Data GU", index=False)
-            df_heatset_export.to_excel(writer, sheet_name="Heatset", index=False)
+            df_gu.to_excel(writer, sheet_name="Data GU", index=False)
+            df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
           processed_data = output.getvalue()
 
           st.download_button(
