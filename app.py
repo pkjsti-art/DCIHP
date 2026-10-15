@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 # ==========================================
-# KONFIGURASI HALAMAN & TAMPILAN ESTETIK (UI/UX)
+# KONFIGURASI HALAMAN & TAMPILAN FUTURISTIK (DARK PURPLE NEON / AI THEME)
 # ==========================================
 st.set_page_config(
     page_title="DATA CONTROL IHP",
@@ -15,54 +15,107 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS untuk memperindah tampilan Streamlit (Modern & Trendy)
+# Custom CSS untuk mengadopsi tema UI/UX Cyberpunk / AI Dashboard (Dark & Glowing Purple)
 st.markdown(
     """
     <style>
+    /* Global background & text */
     .main {
-        background-color: #f8fafc;
+        background-color: #030712;
+        color: #f8fafc;
     }
+    .stApp {
+        background-color: #030712;
+    }
+    
+    /* Main Header Glowing Container */
     .main-header {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        padding: 2rem;
-        border-radius: 12px;
+        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+        padding: 2.5rem;
+        border-radius: 16px;
         color: white;
         margin-bottom: 2rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(168, 85, 247, 0.3);
+        box-shadow: 0 0 40px rgba(168, 85, 247, 0.15), inset 0 0 20px rgba(168, 85, 247, 0.1);
+        text-align: center;
     }
     .main-header h1 {
         margin: 0;
-        font-size: 2.2rem;
-        font-weight: 700;
+        font-size: 2.5rem;
+        font-weight: 800;
         letter-spacing: -0.025em;
+        background: linear-gradient(90deg, #c084fc, #e879f9, #f43f5e);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
     .main-header p {
-        margin: 0.5rem 0 0 0;
-        color: #94a3b8;
-        font-size: 1rem;
+        margin: 0.75rem 0 0 0;
+        color: #cbd5e1;
+        font-size: 1.1rem;
     }
+
+    /* File Uploader Container (Card Style) */
+    div[data-testid="stFileUploader"] {
+        background: #0b0f19;
+        border: 1px solid rgba(168, 85, 247, 0.2);
+        padding: 1.25rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        transition: all 0.3s ease;
+    }
+    div[data-testid="stFileUploader"]:hover {
+        border-color: rgba(168, 85, 247, 0.6);
+        box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+    }
+
+    /* Custom Gradient Button (Neon Purple Style) */
     .stButton > button {
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        background: linear-gradient(135deg, #7c3aed 0%, #9333ea 50%, #c084fc 100%);
         color: white;
-        font-weight: 600;
-        padding: 0.75rem 1.5rem;
-        border-radius: 8px;
+        font-weight: 700;
+        padding: 0.85rem 2rem;
+        border-radius: 10px;
         border: none;
-        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+        box-shadow: 0 0 25px rgba(147, 51, 234, 0.4);
         transition: all 0.3s ease;
         width: 100%;
+        letter-spacing: 0.05em;
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        box-shadow: 0 6px 8px -1px rgba(37, 99, 235, 0.3);
-        transform: translateY(-1px);
+        background: linear-gradient(135deg, #6d28d9 0%, #7e22ce 50%, #a855f7 100%);
+        box-shadow: 0 0 35px rgba(168, 85, 247, 0.7);
+        transform: translateY(-2px);
     }
-    section[data-testid="stSidebar"] {
-        background-color: #0f172a;
+
+    /* Download Button Styling */
+    div.stDownloadButton > button {
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%);
         color: white;
+        font-weight: 700;
+        border-radius: 10px;
+        border: none;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    }
+    div.stDownloadButton > button:hover {
+        box-shadow: 0 0 30px rgba(16, 185, 129, 0.6);
+    }
+
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #070913;
+        border-right: 1px solid rgba(168, 85, 247, 0.15);
+        color: #f8fafc;
     }
     section[data-testid="stSidebar"] .stMarkdown {
-        color: #cbd5e1;
+        color: #e2e8f0;
+    }
+
+    /* Dataframe / Table container dark mode fix */
+    div[data-testid="stDataFrame"] {
+        border: 1px solid rgba(168, 85, 247, 0.2);
+        border-radius: 10px;
+        padding: 5px;
+        background-color: #0b0f19;
     }
     </style>
 """,
@@ -115,24 +168,24 @@ if "processed" not in st.session_state:
 
 
 # ==========================================
-# HEADER UTAMA DASHBOARD
+# HEADER UTAMA DASHBOARD (FUTURISTIK)
 # ==========================================
 st.markdown(
     """
     <div class="main-header">
-        <h1>📊 DATA CONTROL IHP</h1>
-        <p>Sistem Pengelolaan, Validasi, dan Rekonsiliasi Data Produksi & Inventory</p>
+        <h1>✨ DATA CONTROL IHP AI</h1>
+        <p>Advanced Data Processing, Validation & Automated Reconciliation System</p>
     </div>
 """,
     unsafe_allow_html=True,
 )
 
 # Sidebar Modern
-st.sidebar.markdown("### ⚙️ Navigasi")
+st.sidebar.markdown("### ⚡ Control Panel")
 menu = st.sidebar.selectbox("Pilih Menu Utama", ["Pengelolaan Data IHP"])
 
 if menu == "Pengelolaan Data IHP":
-  st.markdown("### 📂 Unggah Dokumen Master")
+  st.markdown("### 🔮 Unggah Dokumen Master")
   st.markdown(
       "Silakan unggah file master **IHP**, **Memphis**, dan **Benang** pada"
       " area di bawah ini:"
@@ -163,12 +216,11 @@ if menu == "Pengelolaan Data IHP":
 
   st.markdown("<br>", unsafe_allow_html=True)
 
-  if st.button("🚀 Proses Analisis & Rekonsiliasi Data", type="primary"):
+  if st.button("⚡ PROSES ANALISIS & REKONSILIASI", type="primary"):
     if uploaded_ihp and uploaded_memphis and uploaded_benang:
       try:
         with st.spinner(
-            "✨ Sistem sedang membersihkan dan memproses data secara"
-            " otomatis..."
+            "🔮 AI sedang membersihkan, memetakan, dan memproses data..."
         ):
           # 1. Membaca File
           if uploaded_ihp.name.endswith(".csv"):
