@@ -3,9 +3,68 @@ import re
 import pandas as pd
 import streamlit as st
 
-# Konfigurasi Halaman Streamlit
+# ==========================================
+# KONFIGURASI HALAMAN & TAMPILAN ESTETIK (UI/UX)
+# ==========================================
 st.set_page_config(
-    page_title="DATA CONTROL IHP", page_icon="📊", layout="wide"
+    page_title="DATA CONTROL IHP",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Custom CSS untuk memperindah tampilan Streamlit (Modern & Trendy)
+st.markdown(
+    """
+    <style>
+    .main {
+        background-color: #f8fafc;
+    }
+    .main-header {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        padding: 2rem;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .main-header h1 {
+        margin: 0;
+        font-size: 2.2rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+    }
+    .main-header p {
+        margin: 0.5rem 0 0 0;
+        color: #94a3b8;
+        font-size: 1rem;
+    }
+    .stButton > button {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        font-weight: 600;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 6px 8px -1px rgba(37, 99, 235, 0.3);
+        transform: translateY(-1px);
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #0f172a;
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: #cbd5e1;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
 )
 
 
@@ -42,31 +101,72 @@ def parse_numeric(val):
     return 0.0
 
 
-# Title Aplikasi
-st.title("DATA CONTROL IHP")
+# Inisialisasi Session State agar data tidak hilang saat tombol download diklik
+if "processed" not in st.session_state:
+  st.session_state.processed = False
+  st.session_state.final_report = None
+  st.session_state.df_ihp = None
+  st.session_state.df_memphis = None
+  st.session_state.df_gu = None
+  st.session_state.df_heatset = None
+  st.session_state.processed_data = None
 
-# Sidebar
-st.sidebar.header("Menu Pengelolaan Data IHP")
-menu = st.sidebar.selectbox("Pilih Menu", ["Pengelolaan Data IHP"])
+
+# ==========================================
+# HEADER UTAMA DASHBOARD
+# ==========================================
+st.markdown(
+    """
+    <div class="main-header">
+        <h1>📊 DATA CONTROL IHP</h1>
+        <p>Sistem Pengelolaan, Validasi, dan Rekonsiliasi Data Produksi & Inventory</p>
+    </div>
+""",
+    unsafe_allow_html=True,
+)
+
+# Sidebar Modern
+st.sidebar.markdown("### ⚙️ Navigasi")
+menu = st.sidebar.selectbox("Pilih Menu Utama", ["Pengelolaan Data IHP"])
 
 if menu == "Pengelolaan Data IHP":
-  st.subheader("Upload File Master")
-
-  uploaded_ihp = st.file_uploader(
-      "Upload Data Master IHP (Excel/CSV)", type=["xlsx", "xls", "csv"]
-  )
-  uploaded_memphis = st.file_uploader(
-      "Upload Data Master Memphis (Excel/CSV)", type=["xlsx", "xls", "csv"]
-  )
-  uploaded_benang = st.file_uploader(
-      "Upload Data Benang (Excel/CSV)", type=["xlsx", "xls", "csv"]
+  st.markdown("### 📂 Unggah Dokumen Master")
+  st.markdown(
+      "Silakan unggah file master **IHP**, **Memphis**, dan **Benang** pada"
+      " area di bawah ini:"
   )
 
-  if st.button("Proses Data", type="primary"):
+  col1, col2, col3 = st.columns(3)
+
+  with col1:
+    uploaded_ihp = st.file_uploader(
+        "1️⃣ Data Master IHP (.xlsx, .csv)",
+        type=["xlsx", "xls", "csv"],
+        key="ihp",
+    )
+
+  with col2:
+    uploaded_memphis = st.file_uploader(
+        "2️⃣ Data Master Memphis (.xlsx, .csv)",
+        type=["xlsx", "xls", "csv"],
+        key="memphis",
+    )
+
+  with col3:
+    uploaded_benang = st.file_uploader(
+        "3️⃣ Data Acuan Benang (.xlsx, .csv)",
+        type=["xlsx", "xls", "csv"],
+        key="benang",
+    )
+
+  st.markdown("<br>", unsafe_allow_html=True)
+
+  if st.button("🚀 Proses Analisis & Rekonsiliasi Data", type="primary"):
     if uploaded_ihp and uploaded_memphis and uploaded_benang:
       try:
         with st.spinner(
-            "Sedang memproses dan membersihkan data, mohon tunggu..."
+            "✨ Sistem sedang membersihkan dan memproses data secara"
+            " otomatis..."
         ):
           # 1. Membaca File
           if uploaded_ihp.name.endswith(".csv"):
@@ -101,17 +201,14 @@ if menu == "Pengelolaan Data IHP":
                 parse_numeric
             )
 
-          # Hapus baris dengan C. Penerimaan bernilai 0
           if "C. Penerimaan" in df_memphis.columns:
             df_memphis = df_memphis[df_memphis["C. Penerimaan"] != 0]
 
-          # Hapus baris yang nilai Bobin-nya "Tanpa Bobin"
           if "Bobin" in df_memphis.columns:
             df_memphis = df_memphis[
                 df_memphis["Bobin"].astype(str).str.lower() != "tanpa bobin"
             ]
 
-          # Pisahkan baris "GU" pada kolom No. LOT
           df_gu = pd.DataFrame(columns=df_memphis.columns)
           if "No. LOT" in df_memphis.columns:
             mask_gu = (
@@ -122,7 +219,6 @@ if menu == "Pengelolaan Data IHP":
             df_gu = df_memphis[mask_gu].copy()
             df_memphis = df_memphis[~mask_gu].copy()
 
-          # Tambahkan Kolom Penerimaan (GR) tepat di sebelah kanan kolom Penerimaan
           if "Penerimaan" in df_memphis.columns:
             penerimaan_gr_vals = df_memphis["Penerimaan"] * 1000
             idx_pen = df_memphis.columns.get_loc("Penerimaan")
@@ -133,8 +229,7 @@ if menu == "Pengelolaan Data IHP":
             df_memphis["Penerimaan (GR)"] = 0
 
           # ==========================================
-          # 3. MAPPING BENANG (Setup Kamus Berdasarkan Data Benang)
-          # Kolom 0 = Nama Benang Memphis, Kolom 1 = Nama Benang IHP
+          # 3. MAPPING BENANG
           # ==========================================
           mapping_memphis_to_ihp = {}
           if len(df_benang.columns) >= 2:
@@ -162,7 +257,6 @@ if menu == "Pengelolaan Data IHP":
           if "Qty" in df_ihp.columns:
             df_ihp["Qty"] = df_ihp["Qty"].apply(parse_numeric)
 
-          # Tentukan kolom item di IHP
           item_col_ihp = None
           for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
             if col in df_ihp.columns:
@@ -171,18 +265,15 @@ if menu == "Pengelolaan Data IHP":
           if not item_col_ihp:
             item_col_ihp = df_ihp.columns[0]
 
-          # Buat kolom 'Nama Benang Standar' sebagai penanda internal di IHP (mencari padanan Memphis dari IHP)
           inv_mapping = {v: k for k, v in mapping_memphis_to_ihp.items()}
           std_names = df_ihp[item_col_ihp].apply(
               lambda x: inv_mapping.get(x, x)
           )
 
-          # Hapus kolom Harga dan Total dari Master IHP
           for col_drop in ["Harga", "Total"]:
             if col_drop in df_ihp.columns:
               df_ihp = df_ihp.drop(columns=[col_drop])
 
-          # Qty Target Standar (GR) - Di sebelah kanan Target Unit
           if "Target Unit" in df_ihp.columns and "Target Qty" in df_ihp.columns:
             target_gr_values = df_ihp.apply(
                 lambda row: (
@@ -203,7 +294,6 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_ihp["Qty Target Standar (GR)"] = 0
 
-          # Qty BB Standar (GR) - Di sebelah kanan Qty
           if "Unit" in df_ihp.columns and "Qty" in df_ihp.columns:
             qty_gr_values = df_ihp.apply(
                 lambda row: (
@@ -220,7 +310,6 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_ihp["Qty BB Standar (GR)"] = 0
 
-          # Hitung selisih sementara untuk crosscheck
           selisih_temp = (
               df_ihp["Qty BB Standar (GR)"] - df_ihp["Qty Target Standar (GR)"]
           )
@@ -228,23 +317,20 @@ if menu == "Pengelolaan Data IHP":
               lambda x: "CORRECT" if abs(x) < 1e-5 else "INCORRECT"
           )
 
-          # Hapus kolom lama jika ada
           for col_drop in ["Crosscheck Qty", "Selisih (GR)"]:
             if col_drop in df_ihp.columns:
               df_ihp = df_ihp.drop(columns=[col_drop])
 
-          # Urutan baru: Crosscheck Qty dulu, baru Selisih (GR)
           idx_bb_std = df_ihp.columns.get_loc("Qty BB Standar (GR)")
           df_ihp.insert(idx_bb_std + 1, "Crosscheck Qty", crosscheck_vals)
           df_ihp.insert(idx_bb_std + 2, "Selisih (GR)", selisih_temp)
 
-          # Tambahkan kolom 'Nama Benang Standar' di kolom paling akhir sheet Master IHP
           if "Nama Benang Standar" in df_ihp.columns:
             df_ihp = df_ihp.drop(columns=["Nama Benang Standar"])
           df_ihp["Nama Benang Standar"] = std_names
 
           # ==========================================
-          # 5. COMPARE & BUILD FINAL REPORT (Multi-line Kode Pemakaian)
+          # 5. COMPARE & BUILD FINAL REPORT
           # ==========================================
           memphis_benang_col = None
           for col in ["Benang", "Nama Benang", "Item", "Nama Item"]:
@@ -254,7 +340,6 @@ if menu == "Pengelolaan Data IHP":
           if not memphis_benang_col:
             memphis_benang_col = df_memphis.columns[0]
 
-          # Cari kolom kode di IHP
           kode_col_ihp = None
           for col in ["Kode", "Kode Item", "Kode Pemakaian", "No Bukti"]:
             if col in df_ihp.columns:
@@ -271,10 +356,8 @@ if menu == "Pengelolaan Data IHP":
             total_cones = sub_memphis["C. Penerimaan"].sum()
             total_qty_m = sub_memphis["Penerimaan (GR)"].sum()
 
-            # Cari padanan nama IHP berdasarkan mapping Data Benang
             ihp_target_name = mapping_memphis_to_ihp.get(b_name, b_name)
 
-            # Filter data IHP berdasarkan nama item asli atau nama standarnya
             sub_ihp = df_ihp[
                 (df_ihp[item_col_ihp] == ihp_target_name)
                 | (df_ihp["Nama Benang Standar"] == b_name)
@@ -295,7 +378,8 @@ if menu == "Pengelolaan Data IHP":
             if not kodes:
               kodes = ["-"]
 
-            # Baris pertama (data lengkap)
+            kode_gabung = ", ".join([str(k) for k in kodes])
+
             final_rows.append({
                 "Nama Benang": b_name,
                 "Total Cones Memphis": total_cones,
@@ -303,33 +387,14 @@ if menu == "Pengelolaan Data IHP":
                 "Total QTY IHP": total_qty_ihp,
                 "Selisih IHP - Memphis": selisih,
                 "Satuan": "GR",
-                "Kode Pemakaian IHP": kodes[0],
+                "Kode Pemakaian IHP": kode_gabung,
                 "Keterangan": keterangan,
             })
 
-            # Baris berikutnya (multi-line untuk kode pemakaian tambahan)
-            for k in kodes[1:]:
-              final_rows.append({
-                  "Nama Benang": "",
-                  "Total Cones Memphis": "",
-                  "Total Qty Memphis": "",
-                  "Total QTY IHP": "",
-                  "Selisih IHP - Memphis": "",
-                  "Satuan": "",
-                  "Kode Pemakaian IHP": k,
-                  "Keterangan": "",
-              })
-
           final_report = pd.DataFrame(final_rows)
 
-          st.success("Data Berhasil Diproses!")
-
-          # Tampilkan Tabel
-          st.subheader("Tabel Hasil Olah Data")
-          st.dataframe(final_report, use_container_width=True)
-
           # ==========================================
-          # 6. DOWNLOAD EXCEL MULTI-SHEET
+          # 6. GENERATE EXCEL BUFFER
           # ==========================================
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -346,19 +411,35 @@ if menu == "Pengelolaan Data IHP":
             df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
           processed_data = output.getvalue()
 
-          st.download_button(
-              label="📥 Unduh Data Excel (Multi-Sheet)",
-              data=processed_data,
-              file_name="Laporan_Data_Control_IHP.xlsx",
-              mime=(
-                  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              ),
-          )
+          # Simpan ke session state agar aman dari rerun saat download
+          st.session_state.final_report = final_report
+          st.session_state.df_ihp = df_ihp
+          st.session_state.df_memphis = df_memphis
+          st.session_state.df_gu = df_gu
+          st.session_state.df_heatset = df_heatset
+          st.session_state.processed_data = processed_data
+          st.session_state.processed = True
 
       except Exception as e:
-        st.error(f"Terjadi kesalahan saat memproses data: {e}")
+        st.error(f"❌ Terjadi kesalahan saat memproses data: {e}")
     else:
       st.warning(
-          "Mohon unggah ketiga file (Data Master IHP, Data Master Memphis, dan"
-          " Data Benang) terlebih dahulu!"
+          "⚠️ Mohon unggah ketiga file master (Data Master IHP, Data Master"
+          " Memphis, dan Data Benang) terlebih dahulu!"
       )
+
+  # Tampilkan Hasil jika data sudah diproses (Persisten dengan session_state)
+  if st.session_state.processed:
+    st.success("🎉 Data Berhasil Diproses dan Direkonsiliasi!")
+    st.markdown("### 📋 Hasil Olah Data & Rekonsiliasi")
+    st.dataframe(st.session_state.final_report, use_container_width=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.download_button(
+        label="📥 Unduh Laporan Excel Lengkap (Multi-Sheet)",
+        data=st.session_state.processed_data,
+        file_name="Laporan_Data_Control_IHP.xlsx",
+        mime=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
