@@ -182,7 +182,7 @@ st.markdown(
 
 # Sidebar Modern
 st.sidebar.markdown("### ⚡ DCIHP")
-menu = st.sidebar.selectbox("Pilih Menu Utama", ["Pengelolaan Data IHP"])
+# menu = st.sidebar.selectbox("Pilih Menu Utama", ["Pengelolaan Data IHP"])
 
 if menu == "Pengelolaan Data IHP":
   st.markdown("### 🔮 Unggah Dokumen Master")
