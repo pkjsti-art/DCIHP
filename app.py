@@ -12,7 +12,6 @@ st.set_page_config(
 # Fungsi untuk membersihkan spasi gaib / karakter tersembunyi dari string
 def clean_text(val):
   if isinstance(val, str):
-    # Menghapus spasi di awal/akhir, zero-width spaces, dan karakter non-printable
     cleaned = re.sub(r"[\u200b\u200c\u200d\ufeff]", "", val)
     return cleaned.strip()
   return val
@@ -20,9 +19,7 @@ def clean_text(val):
 
 def clean_dataframe(df):
   df = df.copy()
-  # Bersihkan nama kolom
   df.columns = [clean_text(str(col)) for col in df.columns]
-  # Bersihkan isi data string
   for col in df.select_dtypes(include=["object", "string"]):
     df[col] = df[col].apply(clean_text)
   return df
@@ -78,7 +75,6 @@ if menu == "Pengelolaan Data IHP":
           # ==========================================
           # 2. PROCESSING DATA MEMPHIS
           # ==========================================
-          # Pastikan kolom C. Penerimaan dan Penerimaan ada
           if "C. Penerimaan" in df_memphis.columns:
             df_memphis["C. Penerimaan"] = pd.to_numeric(
                 df_memphis["C. Penerimaan"], errors="coerce"
@@ -109,7 +105,7 @@ if menu == "Pengelolaan Data IHP":
             df_gu = df_memphis[mask_gu].copy()
             df_memphis = df_memphis[~mask_gu].copy()
 
-          # Buat kolom baru Penerimaan (GR) -> Penerimaan * 1000
+          # Buat kolom baru Penerimaan (GR)
           if "Penerimaan" in df_memphis.columns:
             df_memphis["Penerimaan (GR)"] = df_memphis["Penerimaan"] * 1000
           else:
@@ -139,7 +135,7 @@ if menu == "Pengelolaan Data IHP":
                 df_ihp["Qty"], errors="coerce"
             ).fillna(0)
 
-          # Qty Target Standar (GR)
+          # Qty Target Standar (GR) - Berdasarkan Target Qty dikali 1000 jika bukan GR
           if "Target Unit" in df_ihp.columns and "Target Qty" in df_ihp.columns:
             df_ihp["Qty Target Standar (GR)"] = df_ihp.apply(
                 lambda row: (
@@ -165,7 +161,7 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_ihp["Qty BB Standar (GR)"] = 0
 
-          # Crosscheck Qty (CORRECT / INCORRECT) & Selisih (GR)
+          # Crosscheck Qty & Selisih (GR)
           df_ihp["Selisih (GR)"] = (
               df_ihp["Qty BB Standar (GR)"] - df_ihp["Qty Target Standar (GR)"]
           )
@@ -176,17 +172,13 @@ if menu == "Pengelolaan Data IHP":
           # ==========================================
           # 4. MAPPING BENANG & COMPARE DATA
           # ==========================================
-          # Membuat kamus mapping dari df_benang jika strukturnya mendukung
-          # Asumsi kolom di df_benang: menghubungkan nama benang IHP dan Memphis
           mapping_dict = {}
           if len(df_benang.columns) >= 2:
-            # Misal kolom 0 = IHP, kolom 1 = Memphis (atau sebaliknya, disesuaikan)
             for _, row in df_benang.iterrows():
               k, v = str(row.iloc[0]).strip(), str(row.iloc[1]).strip()
               mapping_dict[k] = v
-              mapping_dict[v] = k  # Dua arah untuk fleksibilitas
+              mapping_dict[v] = k
 
-          # Standarisasi nama benang di Memphis berdasarkan kamus benang
           if "Benang" in df_memphis.columns:
             df_memphis["Benang_Standard"] = df_memphis["Benang"].apply(
                 lambda x: mapping_dict.get(x, x)
@@ -194,8 +186,6 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_memphis["Benang_Standard"] = ""
 
-          # Kolom acuan nama item di IHP (misal kolom Nama Item / Benang di IHP)
-          # Cari kolom yang merepresentasikan nama item/benang di IHP
           item_col_ihp = None
           for col in ["Nama Item", "Item", "Benang", "Nama Benang"]:
             if col in df_ihp.columns:
@@ -207,7 +197,7 @@ if menu == "Pengelolaan Data IHP":
                 lambda x: mapping_dict.get(x, x)
             )
           else:
-            df_ihp["Item_Standard"] = df_ihp.iloc[:, 0]  # Fallback kolom pertama
+            df_ihp["Item_Standard"] = df_ihp.iloc[:, 0]
 
           # Agregasi Memphis per Benang
           memphis_agg = (
@@ -232,7 +222,6 @@ if menu == "Pengelolaan Data IHP":
               .reset_index()
           )
 
-          # Gabungkan (Merge) hasil agregasi berdasarkan nama benang yang sama
           merged_result = pd.merge(
               memphis_agg,
               ihp_agg,
@@ -241,11 +230,17 @@ if menu == "Pengelolaan Data IHP":
               how="outer",
           ).fillna(0)
 
-          # Susun Tabel Akhir Hasil Olah Data sesuai format rancangan
+          # Susun Tabel Akhir Hasil Olah Data
           final_report = pd.DataFrame()
-          final_report["Nama Benang"] = merged_result[
-              "Benang_Standard"
-          ].replace(0, merged_result["Item_Standard"])
+          final_report["Nama Benang"] = merged_result.apply(
+              lambda row: (
+                  row["Item_Standard"]
+                  if row["Benang_Standard"] == 0
+                  or pd.isna(row["Benang_Standard"])
+                  else row["Benang_Standard"]
+              ),
+              axis=1,
+          )
           final_report["Total Cones Memphis"] = merged_result[
               "Total_Cones_Memphis"
           ]
@@ -264,7 +259,7 @@ if menu == "Pengelolaan Data IHP":
 
           st.success("Data Berhasil Diproses!")
 
-          # Tampilkan Tabel Hasil Olah Data di Dashboard (mendukung full screen, filter, sorting)
+          # Tampilkan Tabel
           st.subheader("Tabel Hasil Olah Data")
           st.dataframe(final_report, use_container_width=True)
 
