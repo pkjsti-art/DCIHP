@@ -450,6 +450,10 @@ if menu == "Pengelolaan Data IHP":
           memphis_benangs = df_memphis[memphis_benang_col].unique()
           final_rows = []
           detail_kode_rows = []
+          
+          # Pelacak baris untuk keperluan Hyperlink Excel
+          detail_row_counter = 2 
+          start_row_map = {}
 
           for b_name in memphis_benangs:
             sub_memphis = df_memphis[df_memphis[memphis_benang_col] == b_name]
@@ -483,12 +487,20 @@ if menu == "Pengelolaan Data IHP":
             else:
               kode_summary = str(kodes[0])
 
+            # Simpan rincian dan catat baris awalnya untuk link
+            added_any = False
+            start_idx = detail_row_counter
             for k in kodes:
               if k != "-":
                 detail_kode_rows.append({
                     "Nama Benang": b_name,
                     "Kode Pemakaian IHP": k
                 })
+                detail_row_counter += 1
+                added_any = True
+            
+            if added_any:
+              start_row_map[b_name] = start_idx
 
             final_rows.append({
                 "Nama Benang": b_name,
@@ -533,8 +545,10 @@ if menu == "Pengelolaan Data IHP":
           
           if col_ki in df_heatset.columns and col_ni in df_heatset.columns and not df_heatset.empty:
             df_heatset_bb = df_heatset.groupby([col_ki, col_ni], as_index=False)["Qty BB Standar (GR)"].sum()
+            # Mengganti nama kolom secara paksa agar selalu "Kode Item" dan "Nama Item"
+            df_heatset_bb = df_heatset_bb.rename(columns={col_ki: "Kode Item", col_ni: "Nama Item"})
           else:
-            df_heatset_bb = pd.DataFrame(columns=[col_ki, col_ni, "Qty BB Standar (GR)"])
+            df_heatset_bb = pd.DataFrame(columns=["Kode Item", "Nama Item", "Qty BB Standar (GR)"])
 
           # ==========================================
           # 6. GENERATE EXCEL BUFFER
@@ -552,13 +566,29 @@ if menu == "Pengelolaan Data IHP":
             df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
 
             workbook = writer.book
-            ws = workbook["Hasil Olah Data"]
+            ws_hasil = workbook["Hasil Olah Data"]
 
-            for col in ws.iter_cols(min_row=1, max_row=1, min_col=1, max_col=ws.max_column):
-              for cell in col:
-                if cell.value == "Kode Pemakaian IHP":
-                  col_letter = cell.column_letter
-                  ws.column_dimensions[col_letter].width = 35
+            # Mencari posisi kolom untuk dipasang Hyperlink
+            col_idx_nama_benang = None
+            col_idx_kode = None
+            
+            for idx, cell in enumerate(ws_hasil[1], 1):
+              if cell.value == "Nama Benang":
+                col_idx_nama_benang = idx
+              elif cell.value == "Kode Pemakaian IHP":
+                col_idx_kode = idx
+                ws_hasil.column_dimensions[cell.column_letter].width = 35
+
+            # Memasang Hyperlink ke Sheet Detail Kode IHP
+            if col_idx_nama_benang and col_idx_kode:
+              for row in range(2, ws_hasil.max_row + 1):
+                b_name_cell = ws_hasil.cell(row=row, column=col_idx_nama_benang).value
+                kode_cell = ws_hasil.cell(row=row, column=col_idx_kode)
+                
+                if b_name_cell in start_row_map and "lainnya" in str(kode_cell.value):
+                  target_row = start_row_map[b_name_cell]
+                  kode_cell.hyperlink = f"#'Detail Kode IHP'!A{target_row}"
+                  kode_cell.style = "Hyperlink"
 
           processed_data = output.getvalue()
 
