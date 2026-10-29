@@ -528,9 +528,22 @@ if menu == "Pengelolaan Data IHP":
             col_benang_gu = df_gu.columns[0]
               
           if not df_gu.empty and col_benang_gu:
-            df_laporan_gu = df_gu.groupby(col_benang_gu, as_index=False)["Penerimaan (GR)"].sum()
+            # Modifikasi: Menambahkan C. Penerimaan ke dalam grouping
+            cols_gu_to_sum = ["Penerimaan (GR)"]
+            if "C. Penerimaan" in df_gu.columns:
+                cols_gu_to_sum.insert(0, "C. Penerimaan")
+            
+            df_laporan_gu = df_gu.groupby(col_benang_gu, as_index=False)[cols_gu_to_sum].sum()
+            
+            # MEMASTIKAN URUTAN: Benang -> C. Penerimaan -> Penerimaan (GR)
+            ordered_cols = [col_benang_gu]
+            if "C. Penerimaan" in df_laporan_gu.columns:
+                ordered_cols.append("C. Penerimaan")
+            if "Penerimaan (GR)" in df_laporan_gu.columns:
+                ordered_cols.append("Penerimaan (GR)")
+            df_laporan_gu = df_laporan_gu[ordered_cols]
           else:
-            df_laporan_gu = pd.DataFrame(columns=["Benang", "Penerimaan (GR)"])
+            df_laporan_gu = pd.DataFrame(columns=["Benang", "C. Penerimaan", "Penerimaan (GR)"])
 
           col_kbj = "Kode Barang Jadi" if "Kode Barang Jadi" in df_heatset.columns else None
           col_nbj = "Nama Barang Jadi" if "Nama Barang Jadi" in df_heatset.columns else None
@@ -540,7 +553,6 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_heatset_bj = pd.DataFrame(columns=["Kode Barang Jadi", "Nama Barang Jadi", "Qty Target Standar (GR)"])
 
-          # PERBAIKAN: Prioritaskan "Kode Item" secara eksplisit
           col_ki = "Kode Item" if "Kode Item" in df_heatset.columns else ("Kode" if "Kode" in df_heatset.columns else None)
           col_ni = "Nama Item" if "Nama Item" in df_heatset.columns else ("Item" if "Item" in df_heatset.columns else None)
           
@@ -549,21 +561,28 @@ if menu == "Pengelolaan Data IHP":
             df_heatset_bb = df_heatset_bb.rename(columns={col_ki: "Kode Item", col_ni: "Nama Item"})
           else:
             df_heatset_bb = pd.DataFrame(columns=["Kode Item", "Nama Item", "Qty BB Standar (GR)"])
+            
+          # Menggabungkan Laporan Heatset & Menambah Kolom Selisih (GR)
+          df_laporan_heatset = pd.concat([df_heatset_bj, df_heatset_bb], axis=1)
+          if "Qty BB Standar (GR)" in df_laporan_heatset.columns and "Qty Target Standar (GR)" in df_laporan_heatset.columns:
+            df_laporan_heatset["Selisih (GR)"] = df_laporan_heatset["Qty BB Standar (GR)"].fillna(0) - df_laporan_heatset["Qty Target Standar (GR)"].fillna(0)
+          else:
+            df_laporan_heatset["Selisih (GR)"] = 0
 
           # ==========================================
           # 6. GENERATE EXCEL BUFFER
           # ==========================================
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            # Mengurutkan Sheet sesuai permintaan
             final_report.to_excel(writer, sheet_name="Hasil Olah Data", index=False)
             df_detail_kode.to_excel(writer, sheet_name="Detail Kode IHP", index=False)
+            df_gu.to_excel(writer, sheet_name="Data GU", index=False)
             df_laporan_gu.to_excel(writer, sheet_name="Laporan GU", index=False)
-            df_heatset_bj.to_excel(writer, sheet_name="Laporan Heatset", index=False, startcol=0)
-            df_heatset_bb.to_excel(writer, sheet_name="Laporan Heatset", index=False, startcol=4)
+            df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
+            df_laporan_heatset.to_excel(writer, sheet_name="Laporan Heatset", index=False)
             df_ihp.to_excel(writer, sheet_name="Data Master IHP", index=False)
             df_memphis.to_excel(writer, sheet_name="Data Memphis", index=False)
-            df_gu.to_excel(writer, sheet_name="Data GU", index=False)
-            df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
 
             workbook = writer.book
             ws_hasil = workbook["Hasil Olah Data"]
