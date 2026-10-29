@@ -540,12 +540,12 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_heatset_bj = pd.DataFrame(columns=["Kode Barang Jadi", "Nama Barang Jadi", "Qty Target Standar (GR)"])
 
-          col_ki = "Kode" if "Kode" in df_heatset.columns else ("Kode Item" if "Kode Item" in df_heatset.columns else "Kode")
-          col_ni = "Nama Item" if "Nama Item" in df_heatset.columns else ("Item" if "Item" in df_heatset.columns else "Nama Item")
+          # PERBAIKAN: Prioritaskan "Kode Item" secara eksplisit
+          col_ki = "Kode Item" if "Kode Item" in df_heatset.columns else ("Kode" if "Kode" in df_heatset.columns else None)
+          col_ni = "Nama Item" if "Nama Item" in df_heatset.columns else ("Item" if "Item" in df_heatset.columns else None)
           
-          if col_ki in df_heatset.columns and col_ni in df_heatset.columns and not df_heatset.empty:
+          if col_ki and col_ni and not df_heatset.empty:
             df_heatset_bb = df_heatset.groupby([col_ki, col_ni], as_index=False)["Qty BB Standar (GR)"].sum()
-            # Mengganti nama kolom secara paksa agar selalu "Kode Item" dan "Nama Item"
             df_heatset_bb = df_heatset_bb.rename(columns={col_ki: "Kode Item", col_ni: "Nama Item"})
           else:
             df_heatset_bb = pd.DataFrame(columns=["Kode Item", "Nama Item", "Qty BB Standar (GR)"])
