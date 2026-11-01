@@ -528,7 +528,6 @@ if menu == "Pengelolaan Data IHP":
             col_benang_gu = df_gu.columns[0]
               
           if not df_gu.empty and col_benang_gu:
-            # Modifikasi: Menambahkan C. Penerimaan ke dalam grouping
             cols_gu_to_sum = ["Penerimaan (GR)"]
             if "C. Penerimaan" in df_gu.columns:
                 cols_gu_to_sum.insert(0, "C. Penerimaan")
@@ -545,27 +544,47 @@ if menu == "Pengelolaan Data IHP":
           else:
             df_laporan_gu = pd.DataFrame(columns=["Benang", "C. Penerimaan", "Penerimaan (GR)"])
 
+          # Modifikasi: Laporan Heatset Grouping Gabungan Pasangan Barang Jadi & Bahan Baku
           col_kbj = "Kode Barang Jadi" if "Kode Barang Jadi" in df_heatset.columns else None
           col_nbj = "Nama Barang Jadi" if "Nama Barang Jadi" in df_heatset.columns else None
-          
-          if col_kbj and col_nbj and not df_heatset.empty:
-            df_heatset_bj = df_heatset.groupby([col_kbj, col_nbj], as_index=False)["Qty Target Standar (GR)"].sum()
-          else:
-            df_heatset_bj = pd.DataFrame(columns=["Kode Barang Jadi", "Nama Barang Jadi", "Qty Target Standar (GR)"])
-
           col_ki = "Kode Item" if "Kode Item" in df_heatset.columns else ("Kode" if "Kode" in df_heatset.columns else None)
           col_ni = "Nama Item" if "Nama Item" in df_heatset.columns else ("Item" if "Item" in df_heatset.columns else None)
           
-          if col_ki and col_ni and not df_heatset.empty:
-            df_heatset_bb = df_heatset.groupby([col_ki, col_ni], as_index=False)["Qty BB Standar (GR)"].sum()
-            df_heatset_bb = df_heatset_bb.rename(columns={col_ki: "Kode Item", col_ni: "Nama Item"})
-          else:
-            df_heatset_bb = pd.DataFrame(columns=["Kode Item", "Nama Item", "Qty BB Standar (GR)"])
+          if col_kbj and col_nbj and col_ki and col_ni and not df_heatset.empty:
+            # Mengelompokkan berdasarkan 4 kolom sekaligus agar membentuk pasangan yang benar
+            group_cols = [col_kbj, col_nbj, col_ki, col_ni]
             
-          # Menggabungkan Laporan Heatset & Menambah Kolom Selisih (GR)
-          df_laporan_heatset = pd.concat([df_heatset_bj, df_heatset_bb], axis=1)
+            # Pastikan tipe numerik agar bisa disum
+            df_heatset["Qty Target Standar (GR)"] = pd.to_numeric(df_heatset["Qty Target Standar (GR)"], errors='coerce').fillna(0)
+            df_heatset["Qty BB Standar (GR)"] = pd.to_numeric(df_heatset["Qty BB Standar (GR)"], errors='coerce').fillna(0)
+            
+            df_laporan_heatset = df_heatset.groupby(group_cols, as_index=False).agg({
+                "Qty Target Standar (GR)": "sum",
+                "Qty BB Standar (GR)": "sum"
+            })
+            
+            # Mengganti nama kolom agar standar sesuai permintaan
+            df_laporan_heatset = df_laporan_heatset.rename(columns={
+                col_kbj: "Kode Barang Jadi",
+                col_nbj: "Nama Barang Jadi",
+                col_ki: "Kode Item",
+                col_ni: "Nama Item"
+            })
+            
+            # Menyusun urutan tata letak kolom yang benar
+            df_laporan_heatset = df_laporan_heatset[[
+                "Kode Barang Jadi", "Nama Barang Jadi", "Qty Target Standar (GR)", 
+                "Kode Item", "Nama Item", "Qty BB Standar (GR)"
+            ]]
+          else:
+            df_laporan_heatset = pd.DataFrame(columns=[
+                "Kode Barang Jadi", "Nama Barang Jadi", "Qty Target Standar (GR)", 
+                "Kode Item", "Nama Item", "Qty BB Standar (GR)"
+            ])
+            
+          # Menambah Kolom Selisih (GR)
           if "Qty BB Standar (GR)" in df_laporan_heatset.columns and "Qty Target Standar (GR)" in df_laporan_heatset.columns:
-            df_laporan_heatset["Selisih (GR)"] = df_laporan_heatset["Qty BB Standar (GR)"].fillna(0) - df_laporan_heatset["Qty Target Standar (GR)"].fillna(0)
+            df_laporan_heatset["Selisih (GR)"] = df_laporan_heatset["Qty BB Standar (GR)"] - df_laporan_heatset["Qty Target Standar (GR)"]
           else:
             df_laporan_heatset["Selisih (GR)"] = 0
 
