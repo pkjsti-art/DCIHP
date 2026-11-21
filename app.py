@@ -3,6 +3,7 @@ import re
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table
 import pandas as pd
 import streamlit as st
 
@@ -162,7 +163,7 @@ def find_col_ci(df, candidates):
   return None
 
 
-def style_standard_sheet(ws, df, use_subtotal=False, add_total_row=True):
+def style_standard_sheet(ws, df, add_total_row=True):
   header_fill = PatternFill(
       start_color="1F4E78", end_color="1F4E78", fill_type="solid"
   )
@@ -206,6 +207,11 @@ def style_standard_sheet(ws, df, use_subtotal=False, add_total_row=True):
         cell.number_format = "0"
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
+  if max_col > 0:
+    last_col_letter = get_column_letter(max_col)
+    filter_end_row = data_end_row if len(df) > 0 else 1
+    ws.auto_filter.ref = f"A1:{last_col_letter}{filter_end_row}"
+
   if add_total_row and len(df) > 0 and len(numeric_col_indices) > 0:
     total_row = data_end_row + 1
     for col_idx in range(1, max_col + 1):
@@ -218,10 +224,7 @@ def style_standard_sheet(ws, df, use_subtotal=False, add_total_row=True):
         cell.alignment = Alignment(horizontal="center", vertical="center")
       elif col_idx in numeric_col_indices:
         col_letter = get_column_letter(col_idx)
-        if use_subtotal:
-          cell.value = f"=SUBTOTAL(9,{col_letter}2:{col_letter}{data_end_row})"
-        else:
-          cell.value = f"=SUM({col_letter}2:{col_letter}{data_end_row})"
+        cell.value = f"=SUBTOTAL(109,{col_letter}2:{col_letter}{data_end_row})"
         cell.number_format = "#,##0.00"
         cell.alignment = Alignment(horizontal="right", vertical="center")
 
@@ -240,7 +243,7 @@ def style_standard_sheet(ws, df, use_subtotal=False, add_total_row=True):
           val_len = len(val_str)
         if val_len > max_len:
           max_len = val_len
-    ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+    ws.column_dimensions[col_letter].width = max(max_len + 6, 14)
 
 
 def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
@@ -288,8 +291,8 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
         cell.number_format = "#,##0.00"
         cell.alignment = Alignment(horizontal="right", vertical="center")
 
-  left_data_end = 2 + len(df_gu_memphis)
-  left_total_row = left_data_end + 1 if len(df_gu_memphis) > 0 else 3
+  left_data_end = 2 + len(df_gu_memphis) if len(df_gu_memphis) > 0 else 3
+  left_total_row = left_data_end + 1
   for c_idx in range(1, 5):
     cell = ws.cell(row=left_total_row, column=c_idx)
     cell.fill = total_fill
@@ -300,12 +303,12 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
       cell.alignment = Alignment(horizontal="center", vertical="center")
     elif c_idx in left_num_cols:
       col_letter = get_column_letter(c_idx)
-      if len(df_gu_memphis) > 0:
-        cell.value = f"=SUM({col_letter}3:{col_letter}{left_data_end})"
-      else:
-        cell.value = 0
+      cell.value = f"=SUBTOTAL(109,{col_letter}3:{col_letter}{left_data_end})"
       cell.number_format = "#,##0.00"
       cell.alignment = Alignment(horizontal="right", vertical="center")
+
+  tab_left = Table(displayName="TabelGUMemphis", ref=f"A2:D{left_data_end}")
+  ws.add_table(tab_left)
 
   ws.merge_cells("F1:K1")
   ws["F1"] = "DATA REKAP GU DARI MB (ERP)"
@@ -339,8 +342,8 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
         cell.number_format = "#,##0.00"
         cell.alignment = Alignment(horizontal="right", vertical="center")
 
-  right_data_end = 2 + len(df_gu_mb)
-  right_total_row = right_data_end + 1 if len(df_gu_mb) > 0 else 3
+  right_data_end = 2 + len(df_gu_mb) if len(df_gu_mb) > 0 else 3
+  right_total_row = right_data_end + 1
   for c_idx in range(6, 12):
     cell = ws.cell(row=right_total_row, column=c_idx)
     cell.fill = total_fill
@@ -351,12 +354,12 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
       cell.alignment = Alignment(horizontal="center", vertical="center")
     elif c_idx in right_num_cols:
       col_letter = get_column_letter(c_idx)
-      if len(df_gu_mb) > 0:
-        cell.value = f"=SUM({col_letter}3:{col_letter}{right_data_end})"
-      else:
-        cell.value = 0
+      cell.value = f"=SUBTOTAL(109,{col_letter}3:{col_letter}{right_data_end})"
       cell.number_format = "#,##0.00"
       cell.alignment = Alignment(horizontal="right", vertical="center")
+
+  tab_right = Table(displayName="TabelGUMB", ref=f"F2:K{right_data_end}")
+  ws.add_table(tab_right)
 
   e2 = ws.cell(row=2, column=5, value="Selisih Total Memphis - Total ERP")
   e2.fill = header_fill
@@ -387,7 +390,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
           val_len = len(val_str)
         if val_len > max_len:
           max_len = val_len
-    ws.column_dimensions[col_letter].width = max(max_len + 4, 14)
+    ws.column_dimensions[col_letter].width = max(max_len + 6, 15)
 
 
 if "processed" not in st.session_state:
@@ -656,6 +659,15 @@ if menu == "Pengelolaan Data IHP":
           )
           if no_col_ihp and kode_group_col and not df_ihp.empty:
             df_ihp[no_col_ihp] = pd.factorize(df_ihp[kode_group_col])[0] + 1
+
+          no_col_hs = find_col_ci(df_heatset, ["No", "No."])
+          kode_group_col_hs = find_col_ci(
+              df_heatset, ["Kode", "Kode Pemakaian", "No Bukti"]
+          )
+          if no_col_hs and kode_group_col_hs and not df_heatset.empty:
+            df_heatset[no_col_hs] = (
+                pd.factorize(df_heatset[kode_group_col_hs])[0] + 1
+            )
 
           memphis_benang_col = None
           for col in ["Benang", "Nama Benang", "Item", "Nama Item"]:
@@ -1086,7 +1098,9 @@ if menu == "Pengelolaan Data IHP":
             ws_lap_gu = workbook.create_sheet(title="Laporan GU")
             style_laporan_gu_sheet(ws_lap_gu, df_laporan_gu, df_laporan_gu_mb)
 
-            df_heatset.to_excel(writer, sheet_name="Heatset", index=False)
+            df_heatset.to_excel(
+                writer, sheet_name="Data Heatset", index=False
+            )
             df_laporan_heatset.to_excel(
                 writer, sheet_name="Laporan Heatset", index=False
             )
@@ -1104,30 +1118,27 @@ if menu == "Pengelolaan Data IHP":
               df_mb.to_excel(writer, sheet_name="Master MB", index=False)
 
             standard_sheets = [
-                ("Hasil Olah Data", final_report, False, True),
-                ("Detail Kode IHP", df_detail_kode, False, False),
-                ("Data GU", df_gu, False, True),
-                ("Heatset", df_heatset, False, True),
-                ("Laporan Heatset", df_laporan_heatset, False, True),
-                ("Laporan IHP", df_laporan_ihp, False, True),
-                ("Data Master IHP", df_ihp, False, True),
-                ("Data Memphis", df_memphis, False, True),
+                ("Hasil Olah Data", final_report, True),
+                ("Detail Kode IHP", df_detail_kode, False),
+                ("Data GU", df_gu, True),
+                ("Data Heatset", df_heatset, True),
+                ("Laporan Heatset", df_laporan_heatset, True),
+                ("Laporan IHP", df_laporan_ihp, True),
+                ("Data Master IHP", df_ihp, True),
+                ("Data Memphis", df_memphis, True),
             ]
             if df_mb is not None:
-              standard_sheets.append(("Master MB", df_mb, True, True))
+              standard_sheets.append(("Master MB", df_mb, True))
 
-            for s_name, s_df, use_sub, add_tot in standard_sheets:
+            for s_name, s_df, add_tot in standard_sheets:
               style_standard_sheet(
                   workbook[s_name],
                   s_df,
-                  use_subtotal=use_sub,
                   add_total_row=add_tot,
               )
 
             if df_mb is not None and mask_mb_filter is not None and len(df_mb) > 0:
               ws_mb = workbook["Master MB"]
-              last_col_letter = get_column_letter(len(df_mb.columns))
-              ws_mb.auto_filter.ref = f"A1:{last_col_letter}{len(df_mb) + 1}"
               for i, is_match in enumerate(mask_mb_filter):
                 if not is_match:
                   ws_mb.row_dimensions[i + 2].hidden = True
