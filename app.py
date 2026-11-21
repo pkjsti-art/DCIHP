@@ -139,6 +139,86 @@ def parse_numeric(val):
     return 0.0
 
 
+def try_parse_strict_number(val):
+  if pd.isna(val):
+    return True, None
+  if isinstance(val, (int, float)):
+    return True, float(val)
+  s = str(val).strip()
+  if s == "" or s.lower() == "nan":
+    return True, None
+  if re.match(r"^[+-]?0\d+$", s):
+    return False, None
+  try:
+    return True, float(s)
+  except ValueError:
+    pass
+  if re.match(r"^[+-]?\d{1,3}(\.\d{3})+(,\d+)?$", s):
+    try:
+      return True, float(s.replace(".", "").replace(",", "."))
+    except ValueError:
+      return False, None
+  if re.match(r"^[+-]?\d+,\d+$", s):
+    try:
+      return True, float(s.replace(",", "."))
+    except ValueError:
+      return False, None
+  return False, None
+
+
+def convert_numeric_columns_for_export(df):
+  df_out = df.copy()
+  skip_keywords = [
+      "lot",
+      "batch",
+      "kode",
+      "keterangan",
+      "tanggal",
+      "tgl",
+      "satuan",
+      "unit",
+      "benang",
+      "item",
+      "produk",
+      "bobin",
+      "status",
+      "crosscheck",
+  ]
+  for col in df_out.columns:
+    col_lower = str(col).strip().lower()
+    if col_lower in ["no", "no."]:
+      continue
+    if pd.api.types.is_numeric_dtype(df_out[col]):
+      if not df_out[col].notna().any():
+        df_out[col] = ""
+      continue
+    non_empty_mask = (
+        df_out[col].notna()
+        & (df_out[col].astype(str).str.strip() != "")
+        & (df_out[col].astype(str).str.strip().str.lower() != "nan")
+    )
+    if not non_empty_mask.any():
+      df_out[col] = ""
+      continue
+    if (
+        col_lower.startswith("no ")
+        or col_lower.startswith("no.")
+        or any(k in col_lower for k in skip_keywords)
+    ):
+      continue
+    parsed_vals = []
+    all_numeric = True
+    for v in df_out[col]:
+      ok, num = try_parse_strict_number(v)
+      if not ok:
+        all_numeric = False
+        break
+      parsed_vals.append(num)
+    if all_numeric:
+      df_out[col] = pd.Series(parsed_vals, index=df_out.index, dtype="float64")
+  return df_out
+
+
 def make_unique_columns(cols):
   seen = {}
   result = []
@@ -187,7 +267,8 @@ def style_standard_sheet(ws, df, add_total_row=True):
     if col_lower in ["no", "no."]:
       no_col_indices.add(idx)
     elif pd.api.types.is_numeric_dtype(df[col_name]):
-      numeric_col_indices.add(idx)
+      if df[col_name].notna().any():
+        numeric_col_indices.add(idx)
 
   for col_idx in range(1, max_col + 1):
     cell = ws.cell(row=1, column=col_idx)
@@ -281,6 +362,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
       idx
       for idx, col_name in enumerate(left_cols, 1)
       if pd.api.types.is_numeric_dtype(df_gu_memphis[col_name])
+      and df_gu_memphis[col_name].notna().any()
   }
 
   if len(df_gu_memphis) > 0:
@@ -335,6 +417,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
       idx
       for idx, col_name in enumerate(right_cols, 6)
       if pd.api.types.is_numeric_dtype(df_gu_mb[col_name])
+      and df_gu_mb[col_name].notna().any()
   }
 
   if len(df_gu_mb) > 0:
@@ -1113,51 +1196,77 @@ if menu == "Pengelolaan Data IHP":
                     "Qty Target Standar (GR)",
                 ]]
 
+          final_report_exp = convert_numeric_columns_for_export(final_report)
+          df_detail_kode_exp = convert_numeric_columns_for_export(
+              df_detail_kode
+          )
+          df_gu_exp = convert_numeric_columns_for_export(df_gu)
+          df_laporan_gu_exp = convert_numeric_columns_for_export(df_laporan_gu)
+          df_laporan_gu_mb_exp = convert_numeric_columns_for_export(
+              df_laporan_gu_mb
+          )
+          df_heatset_exp = convert_numeric_columns_for_export(df_heatset)
+          df_laporan_heatset_exp = convert_numeric_columns_for_export(
+              df_laporan_heatset
+          )
+          df_laporan_ihp_exp = convert_numeric_columns_for_export(
+              df_laporan_ihp
+          )
+          df_ihp_exp = convert_numeric_columns_for_export(df_ihp)
+          df_memphis_exp = convert_numeric_columns_for_export(df_memphis)
+          df_mb_exp = (
+              convert_numeric_columns_for_export(df_mb)
+              if df_mb is not None
+              else None
+          )
+
           output = io.BytesIO()
           with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            final_report.to_excel(
+            final_report_exp.to_excel(
                 writer, sheet_name="Hasil Olah Data", index=False
             )
-            df_detail_kode.to_excel(
+            df_detail_kode_exp.to_excel(
                 writer, sheet_name="Detail Kode IHP", index=False
             )
-            df_gu.to_excel(writer, sheet_name="Data GU", index=False)
+            df_gu_exp.to_excel(writer, sheet_name="Data GU", index=False)
 
             workbook = writer.book
             ws_lap_gu = workbook.create_sheet(title="Laporan GU")
-            style_laporan_gu_sheet(ws_lap_gu, df_laporan_gu, df_laporan_gu_mb)
+            style_laporan_gu_sheet(
+                ws_lap_gu, df_laporan_gu_exp, df_laporan_gu_mb_exp
+            )
 
-            df_heatset.to_excel(
+            df_heatset_exp.to_excel(
                 writer, sheet_name="Data Heatset", index=False
             )
-            df_laporan_heatset.to_excel(
+            df_laporan_heatset_exp.to_excel(
                 writer, sheet_name="Laporan Heatset", index=False
             )
-            df_laporan_ihp.to_excel(
+            df_laporan_ihp_exp.to_excel(
                 writer, sheet_name="Laporan IHP", index=False
             )
-            df_ihp.to_excel(
+            df_ihp_exp.to_excel(
                 writer, sheet_name="Data Master IHP", index=False
             )
-            df_memphis.to_excel(
+            df_memphis_exp.to_excel(
                 writer, sheet_name="Data Memphis", index=False
             )
 
-            if df_mb is not None:
-              df_mb.to_excel(writer, sheet_name="Master MB", index=False)
+            if df_mb_exp is not None:
+              df_mb_exp.to_excel(writer, sheet_name="Master MB", index=False)
 
             standard_sheets = [
-                ("Hasil Olah Data", final_report, True),
-                ("Detail Kode IHP", df_detail_kode, False),
-                ("Data GU", df_gu, True),
-                ("Data Heatset", df_heatset, True),
-                ("Laporan Heatset", df_laporan_heatset, True),
-                ("Laporan IHP", df_laporan_ihp, True),
-                ("Data Master IHP", df_ihp, True),
-                ("Data Memphis", df_memphis, True),
+                ("Hasil Olah Data", final_report_exp, True),
+                ("Detail Kode IHP", df_detail_kode_exp, False),
+                ("Data GU", df_gu_exp, True),
+                ("Data Heatset", df_heatset_exp, True),
+                ("Laporan Heatset", df_laporan_heatset_exp, True),
+                ("Laporan IHP", df_laporan_ihp_exp, True),
+                ("Data Master IHP", df_ihp_exp, True),
+                ("Data Memphis", df_memphis_exp, True),
             ]
-            if df_mb is not None:
-              standard_sheets.append(("Master MB", df_mb, True))
+            if df_mb_exp is not None:
+              standard_sheets.append(("Master MB", df_mb_exp, True))
 
             for s_name, s_df, add_tot in standard_sheets:
               style_standard_sheet(
@@ -1166,7 +1275,11 @@ if menu == "Pengelolaan Data IHP":
                   add_total_row=add_tot,
               )
 
-            if df_mb is not None and mask_mb_filter is not None and len(df_mb) > 0:
+            if (
+                df_mb_exp is not None
+                and mask_mb_filter is not None
+                and len(df_mb_exp) > 0
+            ):
               ws_mb = workbook["Master MB"]
               for i, is_match in enumerate(mask_mb_filter):
                 if not is_match:
@@ -1190,7 +1303,7 @@ if menu == "Pengelolaan Data IHP":
 
             if col_idx_nama_benang and col_idx_kode:
               hyperlink_font = Font(color="0563C1", underline="single")
-              for row in range(2, len(final_report) + 2):
+              for row in range(2, len(final_report_exp) + 2):
                 b_name_cell = ws_hasil.cell(
                     row=row, column=col_idx_nama_benang
                 ).value
