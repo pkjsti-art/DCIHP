@@ -172,9 +172,9 @@ def style_standard_sheet(ws, df, add_total_row=True):
       start_color="1F4E78", end_color="1F4E78", fill_type="solid"
   )
   total_font = Font(color="FFFFFF", bold=True)
-  thin_side = Side(style="thin", color="D9D9D9")
-  thin_border = Border(
-      left=thin_side, right=thin_side, top=thin_side, bottom=thin_side
+  thick_side = Side(style="medium", color="000000")
+  thick_border = Border(
+      left=thick_side, right=thick_side, top=thick_side, bottom=thick_side
   )
 
   max_col = len(df.columns)
@@ -194,12 +194,12 @@ def style_standard_sheet(ws, df, add_total_row=True):
     cell.fill = header_fill
     cell.font = header_font
     cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = thin_border
+    cell.border = thick_border
 
   for r in range(2, data_end_row + 1):
     for col_idx in range(1, max_col + 1):
       cell = ws.cell(row=r, column=col_idx)
-      cell.border = thin_border
+      cell.border = thick_border
       if col_idx in numeric_col_indices:
         cell.number_format = "#,##0.00"
         cell.alignment = Alignment(horizontal="right", vertical="center")
@@ -218,7 +218,7 @@ def style_standard_sheet(ws, df, add_total_row=True):
       cell = ws.cell(row=total_row, column=col_idx)
       cell.fill = total_fill
       cell.font = total_font
-      cell.border = thin_border
+      cell.border = thick_border
       if col_idx == 1 and col_idx not in numeric_col_indices:
         cell.value = "TOTAL"
         cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -255,9 +255,9 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
       start_color="1F4E78", end_color="1F4E78", fill_type="solid"
   )
   total_font = Font(color="FFFFFF", bold=True)
-  thin_side = Side(style="thin", color="D9D9D9")
-  thin_border = Border(
-      left=thin_side, right=thin_side, top=thin_side, bottom=thin_side
+  thick_side = Side(style="medium", color="000000")
+  thick_border = Border(
+      left=thick_side, right=thick_side, top=thick_side, bottom=thick_side
   )
 
   ws.merge_cells("A1:D1")
@@ -267,7 +267,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
     cell.fill = header_fill
     cell.font = header_font
     cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = thin_border
+    cell.border = thick_border
 
   left_cols = list(df_gu_memphis.columns)
   for idx, col_name in enumerate(left_cols, 1):
@@ -275,7 +275,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
     cell.fill = header_fill
     cell.font = header_font
     cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = thin_border
+    cell.border = thick_border
 
   left_num_cols = {
       idx
@@ -283,13 +283,17 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
       if pd.api.types.is_numeric_dtype(df_gu_memphis[col_name])
   }
 
-  for r_idx, row in enumerate(df_gu_memphis.itertuples(index=False), 3):
-    for c_idx, val in enumerate(row, 1):
-      cell = ws.cell(row=r_idx, column=c_idx, value=val)
-      cell.border = thin_border
-      if c_idx in left_num_cols:
-        cell.number_format = "#,##0.00"
-        cell.alignment = Alignment(horizontal="right", vertical="center")
+  if len(df_gu_memphis) > 0:
+    for r_idx, row in enumerate(df_gu_memphis.itertuples(index=False), 3):
+      for c_idx, val in enumerate(row, 1):
+        cell = ws.cell(row=r_idx, column=c_idx, value=val)
+        cell.border = thick_border
+        if c_idx in left_num_cols:
+          cell.number_format = "#,##0.00"
+          cell.alignment = Alignment(horizontal="right", vertical="center")
+  else:
+    for c_idx in range(1, 5):
+      ws.cell(row=3, column=c_idx).border = thick_border
 
   left_data_end = 2 + len(df_gu_memphis) if len(df_gu_memphis) > 0 else 3
   left_total_row = left_data_end + 1
@@ -297,7 +301,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
     cell = ws.cell(row=left_total_row, column=c_idx)
     cell.fill = total_fill
     cell.font = total_font
-    cell.border = thin_border
+    cell.border = thick_border
     if c_idx == 1:
       cell.value = "TOTAL"
       cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -317,7 +321,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
     cell.fill = header_fill
     cell.font = header_font
     cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = thin_border
+    cell.border = thick_border
 
   right_cols = list(df_gu_mb.columns)
   for idx, col_name in enumerate(right_cols, 6):
@@ -325,7 +329,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
     cell.fill = header_fill
     cell.font = header_font
     cell.alignment = Alignment(horizontal="center", vertical="center")
-    cell.border = thin_border
+    cell.border = thick_border
 
   right_num_cols = {
       idx
@@ -333,14 +337,18 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
       if pd.api.types.is_numeric_dtype(df_gu_mb[col_name])
   }
 
-  for r_idx, row in enumerate(df_gu_mb.itertuples(index=False), 3):
-    for offset, val in enumerate(row):
-      c_idx = 6 + offset
-      cell = ws.cell(row=r_idx, column=c_idx, value=val)
-      cell.border = thin_border
-      if c_idx in right_num_cols:
-        cell.number_format = "#,##0.00"
-        cell.alignment = Alignment(horizontal="right", vertical="center")
+  if len(df_gu_mb) > 0:
+    for r_idx, row in enumerate(df_gu_mb.itertuples(index=False), 3):
+      for offset, val in enumerate(row):
+        c_idx = 6 + offset
+        cell = ws.cell(row=r_idx, column=c_idx, value=val)
+        cell.border = thick_border
+        if c_idx in right_num_cols:
+          cell.number_format = "#,##0.00"
+          cell.alignment = Alignment(horizontal="right", vertical="center")
+  else:
+    for c_idx in range(6, 12):
+      ws.cell(row=3, column=c_idx).border = thick_border
 
   right_data_end = 2 + len(df_gu_mb) if len(df_gu_mb) > 0 else 3
   right_total_row = right_data_end + 1
@@ -348,7 +356,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
     cell = ws.cell(row=right_total_row, column=c_idx)
     cell.fill = total_fill
     cell.font = total_font
-    cell.border = thin_border
+    cell.border = thick_border
     if c_idx == 6:
       cell.value = "TOTAL"
       cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -365,7 +373,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
   e2.fill = header_fill
   e2.font = header_font
   e2.alignment = Alignment(horizontal="center", vertical="center")
-  e2.border = thin_border
+  e2.border = thick_border
 
   e3 = ws.cell(
       row=3, column=5, value=f"=D{left_total_row}-H{right_total_row}"
@@ -373,7 +381,7 @@ def style_laporan_gu_sheet(ws, df_gu_memphis, df_gu_mb):
   e3.number_format = "#,##0.00"
   e3.font = Font(bold=True)
   e3.alignment = Alignment(horizontal="right", vertical="center")
-  e3.border = thin_border
+  e3.border = thick_border
 
   for col_idx in range(1, 12):
     col_letter = get_column_letter(col_idx)
