@@ -559,6 +559,21 @@ if menu == "Pengelolaan Data IHP":
                 if ni_val not in nama_to_kode_item_map:
                   nama_to_kode_item_map[ni_val] = ki_val
 
+          if (
+              "Nama Barang Jadi" in df_ihp.columns
+              and "Kode Barang Jadi" in df_ihp.columns
+          ):
+            for _, r_ihp in (
+                df_ihp[["Nama Barang Jadi", "Kode Barang Jadi"]]
+                .dropna()
+                .iterrows()
+            ):
+              nbj_val = str(r_ihp["Nama Barang Jadi"]).strip()
+              kbj_val = str(r_ihp["Kode Barang Jadi"]).strip()
+              if nbj_val and nbj_val != "nan" and kbj_val and kbj_val != "nan":
+                if nbj_val not in nama_to_kode_item_map:
+                  nama_to_kode_item_map[nbj_val] = kbj_val
+
           df_heatset = pd.DataFrame(columns=df_ihp.columns)
           if "Kode Barang Jadi" in df_ihp.columns:
             mask_heatset = (
@@ -779,6 +794,14 @@ if menu == "Pengelolaan Data IHP":
           if not col_benang_gu and len(df_gu.columns) > 0:
             col_benang_gu = df_gu.columns[0]
 
+          def lookup_kode_gu(benang_memphis):
+            b_clean = str(benang_memphis).strip()
+            ihp_name = mapping_memphis_to_ihp.get(b_clean, b_clean)
+            kode_found = nama_to_kode_item_map.get(ihp_name, "")
+            if not kode_found:
+              kode_found = nama_to_kode_item_map.get(b_clean, "")
+            return kode_found
+
           if not df_gu.empty and col_benang_gu:
             cols_gu_to_sum = ["Penerimaan (GR)"]
             if "C. Penerimaan" in df_gu.columns:
@@ -797,9 +820,7 @@ if menu == "Pengelolaan Data IHP":
             df_laporan_gu.insert(
                 0,
                 "kode",
-                df_laporan_gu[col_benang_gu].map(
-                    lambda x: nama_to_kode_item_map.get(str(x).strip(), "")
-                ),
+                df_laporan_gu[col_benang_gu].map(lookup_kode_gu),
             )
             if col_benang_gu != "Benang":
               df_laporan_gu = df_laporan_gu.rename(
