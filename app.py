@@ -934,9 +934,11 @@ if menu == "Pengelolaan Data IHP":
             elif len(df_mb_raw) > 4:
               df_mb_raw = df_mb_raw.iloc[4:].copy()
 
-            df_mb_raw = df_mb_raw.applymap(
-                lambda x: clean_text(x) if isinstance(x, str) else x
-            )
+            for col in df_mb_raw.columns:
+              df_mb_raw[col] = df_mb_raw[col].apply(
+                  lambda x: clean_text(x) if isinstance(x, str) else x
+              )
+
             df_mb_raw = df_mb_raw.replace(
                 to_replace=r"^\s*$", value=pd.NA, regex=True
             )
