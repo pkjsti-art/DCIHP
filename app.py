@@ -1168,6 +1168,7 @@ if menu == "Pengelolaan Data IHP":
                   ws_hasil.column_dimensions[cell.column_letter].width = 35
 
             if col_idx_nama_benang and col_idx_kode:
+              hyperlink_font = Font(color="0563C1", underline="single")
               for row in range(2, len(final_report) + 2):
                 b_name_cell = ws_hasil.cell(
                     row=row, column=col_idx_nama_benang
@@ -1179,7 +1180,7 @@ if menu == "Pengelolaan Data IHP":
                 ):
                   target_row = start_row_map[b_name_cell]
                   kode_cell.hyperlink = f"#'Detail Kode IHP'!A{target_row}"
-                  kode_cell.style = "Hyperlink"
+                  kode_cell.font = hyperlink_font
 
           processed_data = output.getvalue()
 
